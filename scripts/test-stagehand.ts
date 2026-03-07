@@ -7,8 +7,9 @@ import { execSync } from "child_process";
 const OUTPUT_DIR = path.resolve("output");
 const FRAMES_DIR = path.join(OUTPUT_DIR, "frames");
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function main() {
-  // Ensure output directories exist
   fs.mkdirSync(FRAMES_DIR, { recursive: true });
 
   // Clean up old frames
@@ -35,111 +36,96 @@ async function main() {
   });
 
   await stagehand.init();
-  console.log(
-    "Stagehand initialized. Session ID:",
-    stagehand.browserbaseSessionId
-  );
-  console.log(
-    "Session replay:",
-    `https://www.browserbase.com/sessions/${stagehand.browserbaseSessionId}`
-  );
+  console.log("Session ID:", stagehand.browserbaseSessionId);
 
   const page = stagehand.context.pages()[0];
 
-  // Start periodic screenshot capture (PNG format, ~5 fps)
+  // Frame capture loop
   let frameCount = 0;
-  const screenshotInterval = setInterval(async () => {
-    try {
-      const buf = await page.screenshot();
-      const frameFile = path.join(
-        FRAMES_DIR,
-        `frame_${String(frameCount).padStart(5, "0")}.png`
-      );
-      fs.writeFileSync(frameFile, buf);
-      frameCount++;
-    } catch {
-      // Page might not be ready or transitioning
+  let capturing = true;
+  const capturePromise = (async () => {
+    while (capturing) {
+      try {
+        const buf = await page.screenshot();
+        const f = path.join(FRAMES_DIR, `frame_${String(frameCount).padStart(5, "0")}.png`);
+        fs.writeFileSync(f, buf);
+        frameCount++;
+      } catch {}
+      await sleep(66); // ~15 fps
     }
-  }, 200); // 5 fps
+  })();
 
-  // Navigate to GitHub (no auth required, has clear buttons to click)
-  console.log("Navigating to github.com/browserbase/stagehand...");
-  await page.goto("https://github.com/browserbase/stagehand", {
+  // === FLOW: Wikipedia — search, open article, scroll through content ===
+
+  console.log("1. Navigate to Wikipedia...");
+  await page.goto("https://en.wikipedia.org/wiki/Artificial_intelligence", {
     waitUntil: "domcontentloaded",
   });
-  console.log("Page loaded.");
+  await sleep(3000);
+  console.log("   Page loaded.");
 
-  // Wait for the page to settle
-  await new Promise((r) => setTimeout(r, 3000));
-
-  // Take a screenshot to see what we're working with
-  const beforeScreenshot = await page.screenshot();
-  fs.writeFileSync(path.join(OUTPUT_DIR, "before-click.png"), beforeScreenshot);
-  console.log("Saved before-click screenshot.");
-
-  // Use Stagehand's act() to interact with the page
-  console.log('Using act() to click the "Code" button...');
-  try {
-    await stagehand.act('click the green "Code" button');
-    console.log("act() completed successfully.");
-  } catch (err) {
-    console.log("act() failed:", err);
+  console.log("2. Scroll down through the article...");
+  for (let i = 0; i < 6; i++) {
+    try {
+      await stagehand.act("scroll down the page");
+      console.log(`   Scrolled down (${i + 1}/6)`);
+    } catch {
+      console.log(`   Scroll ${i + 1} failed.`);
+    }
+    await sleep(1500);
   }
 
-  // Wait for the UI to respond
-  await new Promise((r) => setTimeout(r, 2000));
-
-  // Take an after screenshot
-  const afterScreenshot = await page.screenshot();
-  fs.writeFileSync(path.join(OUTPUT_DIR, "after-click.png"), afterScreenshot);
-  console.log("Saved after-click screenshot.");
-
-  // Try another act() - star the repo
-  console.log('Using act() to click "Star" button...');
+  console.log("3. Click on 'History' link in the table of contents...");
   try {
-    await stagehand.act("click the Star button to star the repository");
-    console.log("Second act() completed.");
+    await stagehand.act('click the "History" link in the article contents or body');
+    console.log("   Clicked History.");
   } catch (err) {
-    console.log("Second act() failed:", err);
+    console.log("   History click failed:", err);
+  }
+  await sleep(3000);
+
+  console.log("4. Scroll down more...");
+  for (let i = 0; i < 4; i++) {
+    try {
+      await stagehand.act("scroll down the page");
+      console.log(`   Scrolled down (${i + 1}/4)`);
+    } catch {
+      console.log(`   Scroll ${i + 1} failed.`);
+    }
+    await sleep(1500);
   }
 
-  await new Promise((r) => setTimeout(r, 2000));
+  console.log("5. Scroll back to top...");
+  try {
+    await stagehand.act("scroll to the top of the page");
+    console.log("   Back at top.");
+  } catch {
+    console.log("   Scroll to top failed.");
+  }
+  await sleep(2000);
 
-  // Stop screenshot capture
-  clearInterval(screenshotInterval);
+  // Stop capture and close
+  capturing = false;
+  await capturePromise;
 
-  // Final screenshot
-  const finalScreenshot = await page.screenshot();
-  fs.writeFileSync(path.join(OUTPUT_DIR, "final.png"), finalScreenshot);
-
-  // Close the browser
   console.log("Closing browser...");
   await stagehand.close();
-
   console.log(`Captured ${frameCount} frames.`);
 
-  // Stitch frames into video using ffmpeg
+  // Stitch into video
   if (frameCount > 0) {
-    console.log("Stitching frames into video with ffmpeg...");
     const outputVideo = path.join(OUTPUT_DIR, "demo.webm");
+    console.log("Encoding video...");
     try {
       execSync(
-        `ffmpeg -y -framerate 5 -i "${FRAMES_DIR}/frame_%05d.png" -c:v libvpx-vp9 -pix_fmt yuv420p -b:v 1M "${outputVideo}"`,
+        `ffmpeg -y -framerate 15 -i "${FRAMES_DIR}/frame_%05d.png" -c:v libvpx-vp9 -pix_fmt yuv420p -b:v 4M "${outputVideo}"`,
         { stdio: "pipe" }
       );
-      console.log(`Video saved to ${outputVideo}`);
-
-      // Clean up frames
       const stats = fs.statSync(outputVideo);
-      console.log(
-        `Video size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`
-      );
+      console.log(`Video saved: ${outputVideo} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
     } catch (err: any) {
-      console.error("ffmpeg failed:", err.stderr?.toString() || err.message);
-      console.log("Frames are saved in", FRAMES_DIR);
+      console.error("ffmpeg error:", err.stderr?.toString().slice(-500) || err.message);
     }
-  } else {
-    console.log("No frames captured. Check the screenshots in output/.");
   }
 
   console.log("Done!");
