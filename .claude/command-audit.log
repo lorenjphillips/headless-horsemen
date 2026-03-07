@@ -281,3 +281,12 @@ EOF
 )"
 git push origin master
 git log --oneline -10
+git add -A && git commit -m "$(cat <<'EOF'
+Rename to Headless Horsemen (headlesshorsemen.lol)
+
+Replace all DemoForge references across source, UI, docs, OpenAPI spec,
+and design docs with new name and production URL.
+EOF
+)" && git push
+git status -u && echo "---" && git diff --stat
+git log --oneline -5
