@@ -4,8 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "npx tsx src/server.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "tsx src/server.ts",
+    "demo": "tsx scripts/test-stagehand.ts",
+    "demo:director": "tsx scripts/director-demo.ts",
+    "demo:generated": "tsx scripts/test-pipeline.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck",
+    "voiceover": "tsx scripts/generate-voiceover.ts"
   },
   "repository": {
     "type": "git",

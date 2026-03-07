@@ -9,7 +9,7 @@ async function main() {
     demoTask: "Load the blog page, click on one of the blog posts, then scroll down through the article",
   };
 
-  console.log("=== Headless Horsemen Pipeline Test ===\n");
+  console.log("=== DemoForge Pipeline Test ===\n");
 
   // Step 1: Generate action plan
   console.log("--- Phase 1: Generate Action Plan ---");
