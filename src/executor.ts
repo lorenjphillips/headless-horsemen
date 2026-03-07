@@ -5,14 +5,22 @@ import * as path from "path";
 import { execSync } from "child_process";
 import { ActionStep, ActionLogEntry } from "./types.js";
 
-const OUTPUT_DIR = path.resolve("output");
-const FRAMES_DIR = path.join(OUTPUT_DIR, "frames");
+const DEFAULT_OUTPUT_DIR = path.resolve("output");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+export interface ExecutorOptions {
+  outputDir?: string;
+  onProgress?: (currentStep: number, totalSteps: number, label: string) => void;
+}
+
 export async function executeActionPlan(
-  steps: ActionStep[]
+  steps: ActionStep[],
+  options?: ExecutorOptions
 ): Promise<{ videoPath: string; actionLog: ActionLogEntry[] }> {
+  const OUTPUT_DIR = options?.outputDir ?? DEFAULT_OUTPUT_DIR;
+  const FRAMES_DIR = path.join(OUTPUT_DIR, "frames");
+
   // Prepare output directories
   fs.mkdirSync(FRAMES_DIR, { recursive: true });
   for (const f of fs.readdirSync(FRAMES_DIR)) {
@@ -83,6 +91,7 @@ export async function executeActionPlan(
             : `wait ${step.seconds}s`;
 
     console.log(`[executor] Step ${i + 1}/${steps.length}: ${stepLabel}`);
+    options?.onProgress?.(i, steps.length, stepLabel);
 
     try {
       switch (step.action) {
@@ -139,7 +148,7 @@ export async function executeActionPlan(
   console.log(`[executor] Action log saved: ${actionLogPath}`);
 
   // Stitch frames into video with motion-interpolated 60fps
-  const videoPath = path.join(OUTPUT_DIR, "demo.webm");
+  const videoPath = path.join(OUTPUT_DIR, "demo.mp4");
   if (frameCount > 0) {
     const captureDuration = (Date.now() - captureStart) / 1000;
     const actualFps = Math.max(1, Math.round(frameCount / captureDuration));
@@ -153,7 +162,7 @@ export async function executeActionPlan(
       execSync(
         `ffmpeg -y -framerate ${actualFps} -i "${FRAMES_DIR}/frame_%05d.jpg" ` +
           `-vf "minterpolate=fps=60:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" ` +
-          `-c:v libvpx-vp9 -pix_fmt yuv420p -b:v 6M "${videoPath}"`,
+          `-c:v libx264 -pix_fmt yuv420p -b:v 6M "${videoPath}"`,
         { stdio: "pipe", timeout: 300000 }
       );
       const stats = fs.statSync(videoPath);
@@ -169,7 +178,7 @@ export async function executeActionPlan(
         execSync(
           `ffmpeg -y -framerate ${actualFps} -i "${FRAMES_DIR}/frame_%05d.jpg" ` +
             `-vf "fps=60" ` +
-            `-c:v libvpx-vp9 -pix_fmt yuv420p -b:v 6M "${videoPath}"`,
+            `-c:v libx264 -pix_fmt yuv420p -b:v 6M "${videoPath}"`,
           { stdio: "pipe", timeout: 120000 }
         );
         const stats = fs.statSync(videoPath);
