@@ -5,8 +5,8 @@ import type { DemoRequest } from "../src/types.js";
 
 async function main() {
   const request: DemoRequest = {
-    siteUrl: "https://github.com/browserbase/stagehand",
-    demoTask: "Star the repository and then view the README file",
+    siteUrl: "https://www.mintlify.com/blog",
+    demoTask: "Load the blog page, click on one of the blog posts, then scroll down through the article",
   };
 
   console.log("=== DemoForge Pipeline Test ===\n");
