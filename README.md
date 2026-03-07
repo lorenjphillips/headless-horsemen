@@ -107,6 +107,12 @@ Three different Gemini models working together in one pipeline. Planning, acting
 
 [**FFmpeg**](https://ffmpeg.org/) handles all post-production. Frame interpolation (`minterpolate` for 60fps), ASS subtitle burning, audio mixing, fade transitions. The entire video pipeline is shell commands called from TypeScript. No native bindings, no video editing libraries. Just `ffmpeg` and `ffprobe`.
 
+### ChromaDB — the memory
+
+[**ChromaDB Cloud**](https://www.trychroma.com/) gives the pipeline a learning loop. Every successful demo gets stored as a vector embedding — the task description, site URL, and full action plan. When a new demo request comes in, we query ChromaDB for semantically similar past demos and inject them as few-shot examples into Gemini's system prompt. The pipeline literally gets better with use.
+
+This means if you've already demoed "browse the pricing page" on one SaaS site, the next time someone asks for a similar task on a different site, Gemini has a concrete working example to reference — not just instructions, but a proven action plan.
+
 ### The rest
 
 | Tool | Role |
@@ -167,6 +173,7 @@ Raw screenshots at 15fps look like a slideshow. Even at consistent intervals, th
 src/
   generator.ts      Gemini 3.1 → structured action plan JSON
   executor.ts       Stagehand runs plan + captures screenshots + ffmpeg
+  memory.ts         ChromaDB Cloud — store & recall demo plans
   server.ts         Express API + serves the UI
   types.ts          ActionStep, DemoOptions, DemoRequest
 
@@ -179,6 +186,7 @@ scripts/
   test-stagehand.ts         Quick test: hardcoded actions → video
   test-pipeline.ts          E2E: URL + task → polished video
   generate-connor-demo.ts   Scripted demo with TTS narration
+  seed-memory.ts            Pre-seed ChromaDB with example plans
 
 design/
   api-design.md       API spec, endpoints, UI mockup
@@ -202,6 +210,9 @@ cp .env.example .env
 #   GEMINI_API_KEY=
 #   BROWSERBASE_API_KEY=
 #   BROWSERBASE_PROJECT_ID=
+#   CHROMA_API_KEY=
+#   CHROMA_TENANT=
+#   CHROMA_DATABASE=
 
 # Run
 npm start

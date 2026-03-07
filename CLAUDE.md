@@ -12,7 +12,7 @@
 | **Stagehand** (Browserbase) | Browser automation — executes actions via natural language |
 | **FFmpeg** | Video post-processing — trim, captions, transitions, combine audio |
 | **Lyria** (Google DeepMind) | *Stretch* — background music generation |
-| **ChromaDB** | *Stretch* — vector store for reusable demo step templates |
+| **ChromaDB Cloud** | Memory layer — stores successful demo plans, retrieves similar past demos as few-shot context for Gemini |
 
 ## Pipeline Architecture
 
@@ -98,10 +98,12 @@ Build `scripts/test-pipeline.ts` — end-to-end test:
 - FFmpeg burns captions, adds zoom on click areas, transitions, fade in/out
 - Output: final `.mp4`
 
-### Step 5 (Stretch): ChromaDB for template reuse
-- Embed successful action logs into ChromaDB
-- On new prompt, semantic search for similar past demos
-- Use retrieved logs as few-shot context for the agent
+### Step 5: ChromaDB memory layer ✅ DONE
+- ChromaDB Cloud stores successful demo plans (task + URL + action plan)
+- On new demo request, queries for semantically similar past demos
+- Injects top results as few-shot examples into Gemini's system prompt
+- UI shows "Memory: X similar demos used as context" badge
+- Pre-seed script: `npx tsx scripts/seed-memory.ts`
 
 ### Step 6 (Stretch): Lyria music generation
 - No public API currently available — investigate access during hackathon
@@ -117,6 +119,7 @@ Build `scripts/test-pipeline.ts` — end-to-end test:
 src/
   generator.ts         # Gemini 3.1 → generates action plan JSON from URL + task
   executor.ts          # Stagehand runs action plan, captures screenshots
+  memory.ts            # ChromaDB Cloud — store & recall demo plans for few-shot context
   narrator.ts          # Gemini generates timed captions from action log
   composer.ts          # FFmpeg: frames + captions + zoom + music → final.mp4
   types.ts             # Shared types (ActionStep, Caption, etc.)
@@ -125,6 +128,7 @@ scripts/
   test-stagehand.ts    # ✅ Quick test: hardcoded actions, get video
   test-gemini.ts       # Quick test: prompt → action plan JSON
   test-pipeline.ts     # End-to-end: URL + task → polished video
+  seed-memory.ts       # Pre-seed ChromaDB with example demo plans
 ```
 
 ## Dev Setup
@@ -141,6 +145,9 @@ Env vars needed:
 GEMINI_API_KEY=
 BROWSERBASE_API_KEY=
 BROWSERBASE_PROJECT_ID=
+CHROMA_API_KEY=
+CHROMA_TENANT=
+CHROMA_DATABASE=
 ```
 
 ## Gemini Models (as of March 2026)

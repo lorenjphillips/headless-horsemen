@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ActionStep, DemoRequest, DemoOptions } from "./types.js";
+import { recallSimilarDemos, StoredDemo } from "./memory.js";
 
 const SYSTEM_PROMPT = `You are a browser automation planner for Stagehand, an AI-powered browser automation tool.
 The output will be recorded as a demo video, so PACING matters — the viewer needs time to see what's happening.
@@ -73,11 +74,29 @@ const ACTION_SCHEMA = {
   },
 };
 
+export interface GenerateResult {
+  steps: ActionStep[];
+  similarDemosFound: number;
+}
+
 export async function generateActionPlan(
   request: DemoRequest,
   options?: DemoOptions
-): Promise<ActionStep[]> {
+): Promise<GenerateResult> {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+  // Query ChromaDB for similar past demos
+  const similarDemos = await recallSimilarDemos(request.siteUrl, request.demoTask);
+
+  let memoryContext = "";
+  if (similarDemos.length > 0) {
+    memoryContext = "\n\n## Example plans from similar past demos (use as reference, adapt to current task):\n";
+    for (let i = 0; i < similarDemos.length; i++) {
+      const demo = similarDemos[i];
+      memoryContext += `\n### Example ${i + 1}: "${demo.demoTask}" on ${demo.siteUrl}\n`;
+      memoryContext += "```json\n" + JSON.stringify(demo.plan, null, 2) + "\n```\n";
+    }
+  }
 
   let pacingHint = "";
   if (options?.speed === "fast") {
@@ -99,7 +118,7 @@ Generate the action plan.`;
     model: "gemini-3.1-pro-preview",
     contents: userPrompt,
     config: {
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: SYSTEM_PROMPT + memoryContext,
       responseMimeType: "application/json",
       responseSchema: ACTION_SCHEMA,
     },
@@ -147,7 +166,7 @@ Generate the action plan.`;
     }
   });
 
-  console.log(`[generator] Generated ${steps.length} steps:`);
+  console.log(`[generator] Generated ${steps.length} steps (${similarDemos.length} similar demos used as context):`);
   steps.forEach((s, i) => {
     if (s.action === "goto") console.log(`  ${i + 1}. goto ${s.url}`);
     else if (s.action === "act")
@@ -157,5 +176,5 @@ Generate the action plan.`;
     else console.log(`  ${i + 1}. wait ${s.seconds}s`);
   });
 
-  return steps;
+  return { steps, similarDemosFound: similarDemos.length };
 }
