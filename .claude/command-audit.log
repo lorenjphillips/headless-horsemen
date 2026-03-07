@@ -58,3 +58,62 @@ NotebookLM requires auth so switched to GitHub as target.
 EOF
 )"
 ls -la .claude/
+git add .claude/command-audit.log
+git commit -m "$(cat <<'EOF'
+Add .claude command audit log
+EOF
+)"
+git status
+git log --oneline -6
+git push origin master
+git log --oneline -15
+git diff HEAD~5..HEAD --stat 2>/dev/null || git diff HEAD~3..HEAD --stat
+npx tsx scripts/test-stagehand.ts 2>&1
+git add CLAUDE.md PROGRESS.md && git commit -m "$(cat <<'EOF'
+Update docs: latest Gemini models, Step 1 learnings, next steps
+
+- Add Gemini 2.5 Flash/Pro and 3.x model IDs to CLAUDE.md
+- Document Stagehand v3 CDP findings (no Playwright video recording)
+- Mark Step 1 complete, assign Step 2 (planner → executor) as next
+- Upgrade model target from gemini-2.0-flash to gemini-2.5-flash
+EOF
+)" && git push
+npx tsx scripts/test-stagehand.ts 2>&1
+npx tsx scripts/test-stagehand.ts 2>&1
+sleep 30 && npx tsx scripts/test-stagehand.ts 2>&1
+npx tsx scripts/test-stagehand.ts 2>&1
+git add CLAUDE.md PROGRESS.md && git commit -m "$(cat <<'EOF'
+Rewrite plan: Gemini 3.1 Pro as agentic brain, fix deprecated SDK
+
+- Architecture shift: one-shot planner → agentic loop where Gemini 3.1
+  observes page, decides action, executes, checks, repeats
+- Fix SDK: @google/generative-ai (deprecated) → @google/genai
+- Upgrade agent model to gemini-3.1-pro-preview
+- Mark Step 2 (research) complete, Step 3 (agent loop) is next
+- Incorporate all findings from RESEARCH.md
+EOF
+)" && git push
+git status
+git diff scripts/test-stagehand.ts
+git log --oneline -5
+git diff .claude/command-audit.log | head -30
+wc -l /Users/lorenphillips/Personal/gemini-hackathon/RESEARCH.md 2>&1 && head -5 /Users/lorenphillips/Personal/gemini-hackathon/RESEARCH.md
+git add scripts/test-stagehand.ts
+git commit -m "$(cat <<'EOF'
+Rewrite test script: Wikipedia flow, 15fps capture
+
+- Switch target from GitHub (rate-limited) to Wikipedia AI article
+- Increase frame capture from 5fps to 15fps for smoother video
+- Increase ffmpeg bitrate from 2M to 4M
+- Flow: load article → scroll down → click History → scroll → top
+- Use async capture loop instead of setInterval
+EOF
+)"
+git add RESEARCH.md
+git commit -m "$(cat <<'EOF'
+Add RESEARCH.md with Gemini API structured output patterns
+
+Documents @google/genai SDK usage, JSON schema generation,
+model IDs, and structured output recipes for planner integration.
+EOF
+)"
