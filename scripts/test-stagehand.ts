@@ -24,7 +24,7 @@ async function main() {
     apiKey: process.env.BROWSERBASE_API_KEY,
     projectId: process.env.BROWSERBASE_PROJECT_ID,
     model: {
-      modelName: "google/gemini-2.0-flash",
+      modelName: "google/gemini-2.5-flash",
       apiKey: process.env.GEMINI_API_KEY,
     },
     browserbaseSessionCreateParams: {
