@@ -9,9 +9,7 @@
 
 **Key findings:**
 - Stagehand v3 uses CDP, NOT Playwright — `recordVideo` unavailable
-- Browserbase `recordSession: true` = rrweb DOM data, not video
 - Working approach: periodic `page.screenshot()` + ffmpeg
-- NotebookLM requires Google auth — used GitHub as public target
 - Stagehand model format: `google/gemini-X` prefix required
 
 ---
@@ -25,49 +23,52 @@ Key takeaways:
 - JSON schema-constrained output via `responseMimeType` + `responseSchema`
 - `act()` = ONE action per call, describe by element type/label
 - Structured output NOT compatible with thinking mode
-- `observe()` → `act(action)` pattern = 2-3x faster (no LLM on replay)
 
 ---
 
-## Step 3: Gemini 3.1 agentic loop ← NEXT
+## Step 3: Gemini 3.1 script generation + execution ← NEXT
 
-**Goal:** Gemini 3.1 Pro acts as the brain in a loop — observes page, decides next action, executes via Stagehand, checks result, repeats until done.
+**The core product flow:**
+1. User provides: `{ siteUrl: "https://notion.so", demoTask: "Create a page and add a heading" }`
+2. Gemini 3.1 Pro generates a full Stagehand action plan (JSON)
+3. Stagehand executes the plan step-by-step while recording
 
 ### TODO
 - [ ] Install `@google/genai` package
-- [ ] Upgrade Stagehand model from `google/gemini-2.0-flash` → `google/gemini-2.5-flash`
-- [ ] Build `src/agent.ts`:
-  - Initialize Stagehand + Browserbase
-  - Start background screenshot capture
-  - Agent loop:
-    1. Screenshot current page
-    2. Send to Gemini 3.1 Pro with prompt + action history
-    3. Gemini returns `{ action, instruction?, url?, done? }`
-    4. Execute via Stagehand `act()` / `page.goto()` / wait
-    5. Append to action history
-    6. If `done: true` → break
-  - Stop capture, ffmpeg stitch → video
-  - Save `output/actions.json` (action log for captions later)
-- [ ] Build `scripts/test-agent.ts` — end-to-end test
-- [ ] Test: "Go to github.com/browserbase/stagehand and star the repository"
+- [ ] Upgrade Stagehand model: `google/gemini-2.0-flash` → `google/gemini-2.5-flash`
+- [ ] Build `src/types.ts` — ActionStep, ActionLog types
+- [ ] Build `src/generator.ts`:
+  - Takes `{ siteUrl, demoTask }`
+  - Calls Gemini 3.1 Pro (`gemini-3.1-pro-preview`) with structured JSON output
+  - System prompt explains Stagehand capabilities (act, goto, wait)
+  - Returns: `ActionStep[]` — the full plan
+- [ ] Build `src/executor.ts`:
+  - Takes `ActionStep[]`
+  - Opens Browserbase browser via Stagehand
+  - Starts background screenshot capture (~5fps)
+  - Executes each step: `page.goto()` / `stagehand.act()` / `sleep()`
+  - Logs each action with timestamp
+  - Saves: frames + `output/actions.json`
+  - Stitches frames → `output/demo.webm` via ffmpeg
+- [ ] Build `scripts/test-pipeline.ts` — end-to-end test
+- [ ] Test with: `{ siteUrl: "https://github.com/browserbase/stagehand", demoTask: "Star the repository" }`
 
-### Gemini 3.1 agent response schema
+### Action plan schema (Gemini output)
 ```json
-{
-  "action": "goto" | "act" | "wait" | "done",
-  "url": "string (if goto)",
-  "instruction": "string (if act — natural language for Stagehand)",
-  "seconds": "number (if wait)",
-  "reasoning": "string (why this action)"
-}
+[
+  { "action": "goto", "url": "https://github.com/browserbase/stagehand" },
+  { "action": "act", "instruction": "click the Star button" },
+  { "action": "wait", "seconds": 2 },
+  { "action": "act", "instruction": "click the Unstar button to confirm" }
+]
 ```
 
 ---
 
-## Step 4: Captions + FFmpeg composition — QUEUED
+## Step 4: Captions + FFmpeg post-production — QUEUED
 
-- Send action log + key screenshots to Gemini → timed captions
-- FFmpeg burns captions, trims dead time, adds fade in/out
+- Gemini generates timed captions from action log + key screenshots
+- FFmpeg: burn captions, zoom on click targets, transitions, fade in/out
 - Output: polished `.mp4`
 
 ---
