@@ -107,20 +107,6 @@ Stagehand v3 uses CDP directly instead of Playwright — `recordVideo` doesn't w
 
 **Fix:** Custom `scroll` action type using `window.scrollBy()` via CDP directly.
 
-### The deprecated SDK trap
-
-`@google/generative-ai` (deprecated Nov 2025) and `@google/genai` (current) have **completely different API shapes**. The deprecated one is still the top search result everywhere.
-
-### Structured output + thinking mode don't mix
-
-Gemini's schema-constrained JSON output is **not compatible with thinking mode**. Enable both → 400 error with no useful message.
-
-### Auth walls everywhere
-
-First test: "Star this GitHub repo." Perfect plan generated. Stagehand clicked Star → GitHub login redirect.
-
-**Fix:** Target public-facing pages for demos.
-
 ### Screenshot → video looks choppy
 
 Raw 15fps screenshots look like a slideshow.
