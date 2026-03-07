@@ -30,7 +30,11 @@
 <h3 align="center">Director Demo</h3>
 <p align="center"><em>Impersonating Connor's Browserbase Director launch demo — fully AI-generated</em></p>
 
-<!-- PASTE the GitHub user-attachments URL here after drag-drop upload -->
+
+
+https://github.com/user-attachments/assets/538855c6-eb97-436e-8bd0-0b4c3153d9ca
+
+
 
 > Headless Horsemen autonomously recreates a Browserbase Director product demo — navigating the site, walking through features, and generating deployable Stagehand code. Narrated end-to-end by Gemini TTS.
 
