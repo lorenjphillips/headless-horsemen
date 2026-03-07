@@ -4,11 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Headless Horsemen</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; }
     .container { max-width: 640px; margin: 0 auto; padding: 2rem 1rem; }
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #222; }
+    .header-left { display: flex; align-items: center; gap: 0.6rem; }
+    .header-logo { width: 32px; height: 32px; }
     header h1 { font-size: 1.5rem; font-weight: 700; color: #fff; }
     header span { font-size: 0.75rem; color: #666; background: #1a1a1a; padding: 0.25rem 0.5rem; border-radius: 4px; }
 
@@ -50,34 +54,34 @@
 
     .hidden { display: none !important; }
 
-    .options-toggle { background: none; border: 1px solid #333; color: #999; font-size: 0.85rem; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; margin-bottom: 0.75rem; width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; }
-    .options-toggle:hover { border-color: #555; color: #ccc; background: #141414; }
-    .options-toggle .arrow { transition: transform 0.2s; }
-    .options-toggle.open .arrow { transform: rotate(90deg); }
-    .options-panel { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
-    .options-panel.open { max-height: 500px; }
-    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 0.5rem 0 0.75rem; }
-    .opt-group label { font-size: 0.8rem; color: #888; margin-bottom: 0.25rem; display: block; }
-    .opt-group select { width: 100%; padding: 0.45rem 0.5rem; background: #141414; border: 1px solid #333; border-radius: 5px; color: #fff; font-size: 0.85rem; outline: none; }
-    .opt-group select:focus { border-color: #5b6ef5; }
-    .opt-group .toggle-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; }
-    .opt-group .toggle-row input[type="checkbox"] { accent-color: #5b6ef5; }
-    .opt-group .toggle-row span { font-size: 0.85rem; color: #666; }
-    .coming-soon { font-size: 0.7rem; color: #555; margin-left: 0.25rem; }
-    .lyria-label { display: flex; align-items: center; gap: 0.35rem; }
-    .lyria-label a { color: #5b6ef5; text-decoration: none; font-size: 0.7rem; }
-    .lyria-label a:hover { text-decoration: underline; }
-    .opt-group select option[title] { font-size: 0.85rem; }
-    .tooltip-wrap { position: relative; display: inline-block; }
-    .tooltip-wrap .tooltip-icon { cursor: help; color: #555; font-size: 0.75rem; margin-left: 0.25rem; }
-    .tooltip-wrap .tooltip-text { visibility: hidden; opacity: 0; position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: #222; color: #ccc; padding: 0.5rem 0.65rem; border-radius: 6px; font-size: 0.75rem; line-height: 1.4; width: 240px; z-index: 10; border: 1px solid #333; transition: opacity 0.15s; pointer-events: none; }
-    .tooltip-wrap:hover .tooltip-text { visibility: visible; opacity: 1; }
+    .options-section { margin-bottom: 1.25rem; }
+    .opt-row { margin-bottom: 1rem; }
+    .opt-label { font-size: 0.8rem; color: #888; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.35rem; }
+    .opt-label a { color: #5b6ef5; text-decoration: none; font-size: 0.7rem; }
+    .opt-label a:hover { text-decoration: underline; }
+
+    .seg-control { display: flex; background: #141414; border: 1px solid #222; border-radius: 8px; padding: 3px; gap: 2px; }
+    .seg-btn { flex: 1; padding: 0.4rem 0.5rem; background: transparent; border: none; border-radius: 6px; color: #888; font-size: 0.8rem; font-weight: 500; cursor: pointer; transition: all 0.15s; text-align: center; white-space: nowrap; }
+    .seg-btn:hover { color: #ccc; }
+    .seg-btn.active { background: #5b6ef5; color: #fff; }
+
+    .music-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .music-pill { padding: 0.35rem 0.7rem; background: #141414; border: 1px solid #222; border-radius: 20px; color: #888; font-size: 0.78rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .music-pill:hover { border-color: #444; color: #ccc; }
+    .music-pill.active { background: #1e2560; border-color: #5b6ef5; color: #c5cbff; }
+
+    .toggle-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #666; cursor: not-allowed; }
+    .toggle-label input[type="checkbox"] { accent-color: #5b6ef5; }
+    .coming-soon { font-size: 0.7rem; color: #555; margin-left: 0.15rem; }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Headless Horsemen</h1>
+      <div class="header-left">
+        <img src="/logo.png" alt="Headless Horsemen" class="header-logo" />
+        <h1>Headless Horsemen</h1>
+      </div>
       <span>Gemini Hackathon</span>
     </header>
 
@@ -91,53 +95,41 @@
         <label for="demo-task">What should the demo show?</label>
         <textarea id="demo-task" placeholder="Navigate to the pricing page and compare plans"></textarea>
       </div>
-      <button class="options-toggle" id="options-toggle" type="button" onclick="toggleOptions()">
-        Options <span class="arrow">▸</span>
-      </button>
-      <div class="options-panel" id="options-panel">
-        <div class="options-grid">
-          <div class="opt-group">
-            <label for="opt-quality">Video Quality</label>
-            <select id="opt-quality">
-              <option value="low">Low (2M / 30fps)</option>
-              <option value="medium" selected>Medium (4M / 30fps)</option>
-              <option value="high">High (6M / 60fps)</option>
-            </select>
+      <div class="options-section">
+        <div class="opt-row">
+          <div class="opt-label">Quality</div>
+          <div class="seg-control" id="opt-quality" data-value="medium">
+            <button class="seg-btn" data-val="low" onclick="setSeg(this)">Low</button>
+            <button class="seg-btn active" data-val="medium" onclick="setSeg(this)">Medium</button>
+            <button class="seg-btn" data-val="high" onclick="setSeg(this)">High</button>
           </div>
-          <div class="opt-group">
-            <label for="opt-speed">Speed</label>
-            <select id="opt-speed">
-              <option value="slow">Slow</option>
-              <option value="normal" selected>Normal</option>
-              <option value="fast">Fast</option>
-            </select>
+        </div>
+        <div class="opt-row">
+          <div class="opt-label">Speed</div>
+          <div class="seg-control" id="opt-speed" data-value="normal">
+            <button class="seg-btn" data-val="slow" onclick="setSeg(this)">Slow</button>
+            <button class="seg-btn active" data-val="normal" onclick="setSeg(this)">Normal</button>
+            <button class="seg-btn" data-val="fast" onclick="setSeg(this)">Fast</button>
           </div>
-          <div class="opt-group">
-            <label>Post-production</label>
-            <div class="toggle-row">
-              <input type="checkbox" id="opt-subtitles" disabled />
-              <span>Subtitles<span class="coming-soon">(coming soon)</span></span>
-            </div>
+        </div>
+        <div class="opt-row">
+          <div class="opt-label">
+            Background Music
+            <a href="https://deepmind.google/models/lyria/" target="_blank" rel="noopener">Lyria 3</a>
           </div>
-          <div class="opt-group" style="grid-column: 1 / -1;">
-            <label class="lyria-label">
-              Lyria 3 Background Music
-              <a href="https://deepmind.google/models/lyria/" target="_blank" rel="noopener">by Google DeepMind</a>
-            </label>
-            <select id="opt-music">
-              <option value="">None</option>
-              <option value="lofi-chill">Lo-fi Chill</option>
-              <option value="upbeat-tech">Upbeat Tech</option>
-              <option value="ambient-focus">Ambient Focus</option>
-              <option value="cinematic-reveal">Cinematic Reveal</option>
-            </select>
-            <div style="margin-top: 0.4rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-              <span class="tooltip-wrap"><span class="tooltip-icon">[Lo-fi Chill]</span><span class="tooltip-text">Soft Rhodes piano, vinyl crackle, boom-bap drums at 75 BPM. Warm and mellow — good for any demo walkthrough.</span></span>
-              <span class="tooltip-wrap"><span class="tooltip-icon">[Upbeat Tech]</span><span class="tooltip-text">Plucky synth arpeggios, four-on-the-floor kick at 120 BPM, shimmering hi-hats. Energetic — great for marketing demos.</span></span>
-              <span class="tooltip-wrap"><span class="tooltip-icon">[Ambient Focus]</span><span class="tooltip-text">Slow-evolving pad textures, soft sub-bass, gentle bell tones. Spacious and calm — ideal for longer technical tutorials.</span></span>
-              <span class="tooltip-wrap"><span class="tooltip-icon">[Cinematic Reveal]</span><span class="tooltip-text">Quiet piano over strings, rising orchestral layers into a triumphant swell at 100 BPM. Dramatic — perfect for short product reveals.</span></span>
-            </div>
+          <div class="music-pills" id="opt-music" data-value="">
+            <button class="music-pill active" data-val="" onclick="setMusic(this)">None</button>
+            <button class="music-pill" data-val="lofi-chill" onclick="setMusic(this)">Lo-fi Chill</button>
+            <button class="music-pill" data-val="upbeat-tech" onclick="setMusic(this)">Upbeat Tech</button>
+            <button class="music-pill" data-val="ambient-focus" onclick="setMusic(this)">Ambient Focus</button>
+            <button class="music-pill" data-val="cinematic-reveal" onclick="setMusic(this)">Cinematic</button>
           </div>
+        </div>
+        <div class="opt-row">
+          <label class="toggle-label">
+            <input type="checkbox" id="opt-subtitles" disabled />
+            Subtitles <span class="coming-soon">(coming soon)</span>
+          </label>
         </div>
       </div>
       <button id="generate-btn" onclick="submitDemo()">Generate Demo</button>
@@ -175,21 +167,28 @@
     let currentJobId = null;
     let pollTimer = null;
 
-    function toggleOptions() {
-      const btn = document.getElementById('options-toggle');
-      const panel = document.getElementById('options-panel');
-      btn.classList.toggle('open');
-      panel.classList.toggle('open');
+    function setSeg(btn) {
+      const parent = btn.parentElement;
+      parent.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      parent.dataset.value = btn.dataset.val;
+    }
+
+    function setMusic(btn) {
+      const parent = btn.parentElement;
+      parent.querySelectorAll('.music-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      parent.dataset.value = btn.dataset.val;
     }
 
     function getOptions() {
       const opts = {};
-      const quality = document.getElementById('opt-quality').value;
+      const quality = document.getElementById('opt-quality').dataset.value;
       if (quality !== 'medium') opts.videoQuality = quality;
-      const speed = document.getElementById('opt-speed').value;
+      const speed = document.getElementById('opt-speed').dataset.value;
       if (speed !== 'normal') opts.speed = speed;
       if (document.getElementById('opt-subtitles').checked) opts.subtitles = true;
-      const music = document.getElementById('opt-music').value;
+      const music = document.getElementById('opt-music').dataset.value;
       if (music) opts.backgroundMusic = music;
       return Object.keys(opts).length > 0 ? opts : undefined;
     }
