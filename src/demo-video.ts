@@ -1156,10 +1156,15 @@ async function renderCompositedFrames(args: {
 }
 
 async function launchLocalComposer(viewport: Viewport) {
+  const defaultPath =
+    process.platform === "darwin"
+      ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      : "/usr/bin/google-chrome-stable";
+
   const executablePath =
     process.env.LOCAL_CHROME_PATH ||
     process.env.GOOGLE_CHROME_BIN ||
-    "/usr/bin/google-chrome-stable";
+    defaultPath;
 
   if (!fs.existsSync(executablePath)) {
     throw new Error(
