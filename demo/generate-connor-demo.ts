@@ -280,7 +280,7 @@ async function main() {
         frameCount++;
       } catch {}
       const elapsed = Date.now() - t0;
-      if (elapsed < 200) await sleep(200 - elapsed);
+      if (elapsed < 33) await sleep(33 - elapsed); // ~30fps capture
     }
   })();
 
@@ -431,12 +431,22 @@ async function main() {
   // =====================================================================
 
   const rawVideo = path.join(OUTPUT_DIR, "raw.mp4");
-  console.log("\n[demo] Encoding video...");
-  execSync(
-    `ffmpeg -y -framerate ${fps} -i "${RENDERED_DIR}/frame_%05d.jpg" ` +
-    `-c:v libx264 -pix_fmt yuv420p -b:v 2M "${rawVideo}"`,
-    { stdio: "pipe", timeout: 120000 }
-  );
+  console.log("\n[demo] Encoding video (30fps, high quality)...");
+  try {
+    execSync(
+      `ffmpeg -y -framerate ${fps} -i "${RENDERED_DIR}/frame_%05d.jpg" ` +
+      `-vf "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" ` +
+      `-c:v libx264 -pix_fmt yuv420p -b:v 4M "${rawVideo}"`,
+      { stdio: "inherit", timeout: 1200000 }
+    );
+  } catch {
+    console.log("[demo] minterpolate failed, falling back to simple encode...");
+    execSync(
+      `ffmpeg -y -framerate ${fps} -i "${RENDERED_DIR}/frame_%05d.jpg" ` +
+      `-vf "fps=30" -c:v libx264 -pix_fmt yuv420p -b:v 4M "${rawVideo}"`,
+      { stdio: "inherit", timeout: 600000 }
+    );
+  }
   console.log(`[demo] Raw video: ${(fs.statSync(rawVideo).size / 1024 / 1024).toFixed(1)} MB`);
 
   // Mix narration
@@ -454,7 +464,7 @@ async function main() {
         `ffmpeg -y -i "${rawVideo}" ${inputs} ` +
         `-filter_complex "${filters.join(";")}" ` +
         `-map 0:v -map "[audio]" -c:v copy -c:a aac -b:a 128k -shortest "${FINAL_PATH}"`,
-        { stdio: "pipe", timeout: 120000 }
+        { stdio: "pipe", timeout: 600000 }
       );
       console.log("[demo] ✓ Video + narration mixed");
     } catch {
