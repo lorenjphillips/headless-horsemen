@@ -107,6 +107,10 @@ Build `scripts/test-pipeline.ts` — end-to-end test:
 - No public API currently available — investigate access during hackathon
 - Fallback: royalty-free lo-fi track mixed via FFmpeg
 
+### Step 7: API + UI + Deploy
+- Express server, single-page vanilla HTML UI, deploy to Railway
+- See [`design/api-design.md`](design/api-design.md) for full spec (endpoints, OpenAPI, ASCII mockup, deployment plan)
+
 ## Project Structure
 
 ```
@@ -168,3 +172,7 @@ Available Gemini 3 models (all preview):
 - **No frontend** — pipeline-first, CLI or API wrapper comes later
 - **Browserbase cloud browsers** — no local Chrome needed, works anywhere
 - **FFmpeg via shell** — call `ffmpeg` from Node, no native bindings needed
+
+## Workflow Rules
+- **Do NOT run the pipeline** (`npx tsx scripts/test-pipeline.ts`) — it takes 30-60+ seconds with Browserbase + ffmpeg encoding. The user will run it themselves and report results.
+- You may generate/edit pipeline code freely, just don't execute it.
