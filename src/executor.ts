@@ -3,7 +3,7 @@ import { Stagehand } from "@browserbasehq/stagehand";
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
-import { ActionStep, ActionLogEntry } from "./types.js";
+import { ActionStep, ActionLogEntry, DemoOptions } from "./types.js";
 
 const DEFAULT_OUTPUT_DIR = path.resolve("output");
 
@@ -11,6 +11,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface ExecutorOptions {
   outputDir?: string;
+  demoOptions?: DemoOptions;
   onProgress?: (currentStep: number, totalSteps: number, label: string, done?: boolean) => void;
 }
 
@@ -20,6 +21,36 @@ export async function executeActionPlan(
 ): Promise<{ videoPath: string; actionLog: ActionLogEntry[] }> {
   const OUTPUT_DIR = options?.outputDir ?? DEFAULT_OUTPUT_DIR;
   const FRAMES_DIR = path.join(OUTPUT_DIR, "frames");
+  const demoOpts = options?.demoOptions ?? {};
+
+  // Video quality settings
+  const qualityMap = {
+    low:    { bitrate: "2M", targetFpsOverride: 30 },
+    medium: { bitrate: "4M", targetFpsOverride: 30 },
+    high:   { bitrate: "6M", targetFpsOverride: 60 },
+  };
+  const quality = qualityMap[demoOpts.videoQuality ?? "medium"];
+
+  // Speed multiplier for sleep durations
+  const speedMultiplier = demoOpts.speed === "fast" ? 0.5 : demoOpts.speed === "slow" ? 1.5 : 1;
+
+  // Viewport
+  const viewport = demoOpts.viewport ?? { width: 1280, height: 720 };
+
+  // Log future features
+  if (demoOpts.subtitles) console.log("[executor] TODO: subtitles enabled (not yet implemented)");
+
+  // Resolve music track path
+  const musicTrack = demoOpts.backgroundMusic
+    ? path.resolve("public", "music", `${demoOpts.backgroundMusic}.mp3`)
+    : null;
+  if (musicTrack) {
+    if (fs.existsSync(musicTrack)) {
+      console.log(`[executor] Background music: ${demoOpts.backgroundMusic}`);
+    } else {
+      console.log(`[executor] Warning: music file not found: ${musicTrack}`);
+    }
+  }
 
   // Prepare output directories
   fs.mkdirSync(FRAMES_DIR, { recursive: true });
@@ -40,7 +71,7 @@ export async function executeActionPlan(
     browserbaseSessionCreateParams: {
       browserSettings: {
         recordSession: true,
-        viewport: { width: 1280, height: 720 },
+        viewport: { width: viewport.width, height: viewport.height },
       },
     },
   });
@@ -97,11 +128,11 @@ export async function executeActionPlan(
       switch (step.action) {
         case "goto":
           await page.goto(step.url, { waitUntil: "domcontentloaded" });
-          await sleep(3000); // Let viewer see the page load
+          await sleep(3000 * speedMultiplier);
           break;
         case "act":
           await stagehand.act(step.instruction);
-          await sleep(2500); // Let viewer see the action result
+          await sleep(2500 * speedMultiplier);
           break;
         case "scroll": {
           const px = step.pixels ?? 400;
@@ -111,11 +142,11 @@ export async function executeActionPlan(
               window.scrollBy({ top: scrollY, behavior: "smooth" }),
             dir
           );
-          await sleep(1000); // Let the smooth scroll animation finish
+          await sleep(1000 * speedMultiplier);
           break;
         }
         case "wait":
-          await sleep(step.seconds * 1000);
+          await sleep(step.seconds * 1000 * speedMultiplier);
           break;
       }
 
@@ -157,7 +188,7 @@ export async function executeActionPlan(
     console.log(
       `[executor] Capture stats: ${frameCount} frames in ${captureDuration.toFixed(1)}s = ${actualFps} raw fps`
     );
-    const targetFps = actualFps < 5 ? 30 : 60;
+    const targetFps = actualFps < 5 ? 30 : quality.targetFpsOverride;
     console.log(
       `[executor] Encoding video (interpolating to ${targetFps}fps)...`
     );
@@ -165,7 +196,7 @@ export async function executeActionPlan(
       execSync(
         `ffmpeg -y -framerate ${actualFps} -i "${FRAMES_DIR}/frame_%05d.jpg" ` +
           `-vf "minterpolate=fps=${targetFps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" ` +
-          `-c:v libx264 -pix_fmt yuv420p -b:v 6M "${videoPath}"`,
+          `-c:v libx264 -pix_fmt yuv420p -b:v ${quality.bitrate} "${videoPath}"`,
         { stdio: "pipe", timeout: 300000 }
       );
       const stats = fs.statSync(videoPath);
@@ -181,7 +212,7 @@ export async function executeActionPlan(
         execSync(
           `ffmpeg -y -framerate ${actualFps} -i "${FRAMES_DIR}/frame_%05d.jpg" ` +
             `-vf "fps=${targetFps}" ` +
-            `-c:v libx264 -pix_fmt yuv420p -b:v 6M "${videoPath}"`,
+            `-c:v libx264 -pix_fmt yuv420p -b:v ${quality.bitrate} "${videoPath}"`,
           { stdio: "pipe", timeout: 120000 }
         );
         const stats = fs.statSync(videoPath);
@@ -194,6 +225,26 @@ export async function executeActionPlan(
           err2.stderr?.toString().slice(-500) || err2.message
         );
       }
+    }
+  }
+
+  // Mix in background music (looped, faded) if requested
+  if (musicTrack && fs.existsSync(musicTrack) && fs.existsSync(videoPath)) {
+    const withMusicPath = path.join(OUTPUT_DIR, "demo_music.mp4");
+    console.log("[executor] Mixing background music (looped)...");
+    try {
+      execSync(
+        `ffmpeg -y -i "${videoPath}" -stream_loop -1 -i "${musicTrack}" ` +
+          `-filter_complex "[1:a]volume=0.3,afade=t=out:st=0:d=3[music];[music]apad[m];[m]atrim=0:duration=999[trimmed]" ` +
+          `-map 0:v -map "[trimmed]" -c:v copy -c:a aac -b:a 128k -shortest "${withMusicPath}"`,
+        { stdio: "pipe", timeout: 120000 }
+      );
+      // Replace original with music version
+      fs.renameSync(withMusicPath, videoPath);
+      console.log("[executor] Background music mixed successfully.");
+    } catch (err: any) {
+      console.error("[executor] Music mixing failed:", err.stderr?.toString().slice(-300) || err.message);
+      // Keep the video without music
     }
   }
 

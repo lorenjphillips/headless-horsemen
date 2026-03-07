@@ -5,7 +5,7 @@ import * as path from "path";
 import * as crypto from "crypto";
 import { generateActionPlan } from "./generator.js";
 import { executeActionPlan } from "./executor.js";
-import type { ActionStep, ActionLogEntry, DemoRequest } from "./types.js";
+import type { ActionStep, ActionLogEntry, DemoRequest, DemoOptions } from "./types.js";
 
 const app = express();
 app.use(express.json());
@@ -25,6 +25,7 @@ interface DemoJob {
   status: JobStatus;
   siteUrl: string;
   demoTask: string;
+  options: DemoOptions;
   plan: ActionStep[] | null;
   actionLog: ActionLogEntry[] | null;
   progress: { currentStep: number; totalSteps: number; currentAction: string } | null;
@@ -46,12 +47,14 @@ function genId(): string {
 // --------------- Routes ---------------
 
 app.post("/demos", (req, res) => {
-  const { siteUrl, demoTask } = req.body as Partial<DemoRequest>;
+  const { siteUrl, demoTask, options } = req.body as Partial<DemoRequest>;
 
   if (!siteUrl || !demoTask) {
     res.status(400).json({ error: "siteUrl and demoTask are required" });
     return;
   }
+
+  const demoOptions: DemoOptions = options ?? {};
 
   if (activeJobId) {
     res.status(409).json({ error: "A demo is already being generated. Try again later." });
@@ -64,6 +67,7 @@ app.post("/demos", (req, res) => {
     status: "planning",
     siteUrl,
     demoTask,
+    options: demoOptions,
     plan: null,
     actionLog: null,
     progress: null,
@@ -146,7 +150,7 @@ async function runPipeline(job: DemoJob) {
   try {
     // Phase 1: Generate action plan
     console.log(`[server] Job ${job.id}: generating plan...`);
-    const steps = await generateActionPlan({ siteUrl: job.siteUrl, demoTask: job.demoTask });
+    const steps = await generateActionPlan({ siteUrl: job.siteUrl, demoTask: job.demoTask }, job.options);
     job.plan = steps;
     job.status = "executing";
 
@@ -154,6 +158,7 @@ async function runPipeline(job: DemoJob) {
     console.log(`[server] Job ${job.id}: executing ${steps.length} steps...`);
     const { videoPath, actionLog } = await executeActionPlan(steps, {
       outputDir: jobDir,
+      demoOptions: job.options,
       onProgress: (currentStep, totalSteps, label, done) => {
         job.progress = {
           currentStep: done ? currentStep + 1 : currentStep,
@@ -182,6 +187,6 @@ async function runPipeline(job: DemoJob) {
 // --------------- Start ---------------
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
-app.listen(PORT, () => {
-  console.log(`[server] Headless Horsemen running at http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`[server] Headless Horsemen running on 0.0.0.0:${PORT}`);
 });

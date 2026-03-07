@@ -140,6 +140,44 @@ components:
           type: string
           description: What the demo should show (natural language)
           example: "Star the repository and view the README"
+        options:
+          $ref: "#/components/schemas/DemoOptions"
+
+    DemoOptions:
+      type: object
+      description: Optional settings to customize the demo output
+      properties:
+        subtitles:
+          type: boolean
+          description: Burn captions into video (coming soon)
+          default: false
+        backgroundMusic:
+          type: string
+          enum: [lofi-chill, upbeat-tech, ambient-focus, cinematic-reveal, "false"]
+          description: >
+            Background music track (generated with Lyria 3 by Google DeepMind).
+            Set to false or omit to disable. Tracks loop and fade out at the end.
+          default: "false"
+        videoQuality:
+          type: string
+          enum: [low, medium, high]
+          description: "Video quality preset — low: 2M/30fps, medium: 4M/30fps, high: 6M/60fps"
+          default: medium
+        viewport:
+          type: object
+          description: Browser viewport dimensions
+          properties:
+            width:
+              type: integer
+              default: 1280
+            height:
+              type: integer
+              default: 720
+        speed:
+          type: string
+          enum: [slow, normal, fast]
+          description: Pacing — scales wait times and adjusts plan generation
+          default: normal
 
     DemoJobCreated:
       type: object

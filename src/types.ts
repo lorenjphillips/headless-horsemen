@@ -12,7 +12,23 @@ export interface ActionLogEntry {
   error?: string;
 }
 
+export type MusicTrack = "lofi-chill" | "upbeat-tech" | "ambient-focus" | "cinematic-reveal";
+
+export interface DemoOptions {
+  // Post-production
+  subtitles?: boolean;
+  backgroundMusic?: MusicTrack | false;
+
+  // Video quality
+  videoQuality?: "low" | "medium" | "high";
+  viewport?: { width: number; height: number };
+
+  // Pacing
+  speed?: "slow" | "normal" | "fast";
+}
+
 export interface DemoRequest {
   siteUrl: string;
   demoTask: string;
+  options?: DemoOptions;
 }

@@ -49,6 +49,29 @@
     .btn-secondary:hover { background: #333; }
 
     .hidden { display: none !important; }
+
+    .options-toggle { background: none; border: 1px solid #333; color: #999; font-size: 0.85rem; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; margin-bottom: 0.75rem; width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+    .options-toggle:hover { border-color: #555; color: #ccc; background: #141414; }
+    .options-toggle .arrow { transition: transform 0.2s; }
+    .options-toggle.open .arrow { transform: rotate(90deg); }
+    .options-panel { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
+    .options-panel.open { max-height: 500px; }
+    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 0.5rem 0 0.75rem; }
+    .opt-group label { font-size: 0.8rem; color: #888; margin-bottom: 0.25rem; display: block; }
+    .opt-group select { width: 100%; padding: 0.45rem 0.5rem; background: #141414; border: 1px solid #333; border-radius: 5px; color: #fff; font-size: 0.85rem; outline: none; }
+    .opt-group select:focus { border-color: #5b6ef5; }
+    .opt-group .toggle-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; }
+    .opt-group .toggle-row input[type="checkbox"] { accent-color: #5b6ef5; }
+    .opt-group .toggle-row span { font-size: 0.85rem; color: #666; }
+    .coming-soon { font-size: 0.7rem; color: #555; margin-left: 0.25rem; }
+    .lyria-label { display: flex; align-items: center; gap: 0.35rem; }
+    .lyria-label a { color: #5b6ef5; text-decoration: none; font-size: 0.7rem; }
+    .lyria-label a:hover { text-decoration: underline; }
+    .opt-group select option[title] { font-size: 0.85rem; }
+    .tooltip-wrap { position: relative; display: inline-block; }
+    .tooltip-wrap .tooltip-icon { cursor: help; color: #555; font-size: 0.75rem; margin-left: 0.25rem; }
+    .tooltip-wrap .tooltip-text { visibility: hidden; opacity: 0; position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: #222; color: #ccc; padding: 0.5rem 0.65rem; border-radius: 6px; font-size: 0.75rem; line-height: 1.4; width: 240px; z-index: 10; border: 1px solid #333; transition: opacity 0.15s; pointer-events: none; }
+    .tooltip-wrap:hover .tooltip-text { visibility: visible; opacity: 1; }
   </style>
 </head>
 <body>
@@ -67,6 +90,55 @@
       <div class="form-group">
         <label for="demo-task">What should the demo show?</label>
         <textarea id="demo-task" placeholder="Navigate to the pricing page and compare plans"></textarea>
+      </div>
+      <button class="options-toggle" id="options-toggle" type="button" onclick="toggleOptions()">
+        Options <span class="arrow">▸</span>
+      </button>
+      <div class="options-panel" id="options-panel">
+        <div class="options-grid">
+          <div class="opt-group">
+            <label for="opt-quality">Video Quality</label>
+            <select id="opt-quality">
+              <option value="low">Low (2M / 30fps)</option>
+              <option value="medium" selected>Medium (4M / 30fps)</option>
+              <option value="high">High (6M / 60fps)</option>
+            </select>
+          </div>
+          <div class="opt-group">
+            <label for="opt-speed">Speed</label>
+            <select id="opt-speed">
+              <option value="slow">Slow</option>
+              <option value="normal" selected>Normal</option>
+              <option value="fast">Fast</option>
+            </select>
+          </div>
+          <div class="opt-group">
+            <label>Post-production</label>
+            <div class="toggle-row">
+              <input type="checkbox" id="opt-subtitles" disabled />
+              <span>Subtitles<span class="coming-soon">(coming soon)</span></span>
+            </div>
+          </div>
+          <div class="opt-group" style="grid-column: 1 / -1;">
+            <label class="lyria-label">
+              Lyria 3 Background Music
+              <a href="https://deepmind.google/models/lyria/" target="_blank" rel="noopener">by Google DeepMind</a>
+            </label>
+            <select id="opt-music">
+              <option value="">None</option>
+              <option value="lofi-chill">Lo-fi Chill</option>
+              <option value="upbeat-tech">Upbeat Tech</option>
+              <option value="ambient-focus">Ambient Focus</option>
+              <option value="cinematic-reveal">Cinematic Reveal</option>
+            </select>
+            <div style="margin-top: 0.4rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+              <span class="tooltip-wrap"><span class="tooltip-icon">[Lo-fi Chill]</span><span class="tooltip-text">Soft Rhodes piano, vinyl crackle, boom-bap drums at 75 BPM. Warm and mellow — good for any demo walkthrough.</span></span>
+              <span class="tooltip-wrap"><span class="tooltip-icon">[Upbeat Tech]</span><span class="tooltip-text">Plucky synth arpeggios, four-on-the-floor kick at 120 BPM, shimmering hi-hats. Energetic — great for marketing demos.</span></span>
+              <span class="tooltip-wrap"><span class="tooltip-icon">[Ambient Focus]</span><span class="tooltip-text">Slow-evolving pad textures, soft sub-bass, gentle bell tones. Spacious and calm — ideal for longer technical tutorials.</span></span>
+              <span class="tooltip-wrap"><span class="tooltip-icon">[Cinematic Reveal]</span><span class="tooltip-text">Quiet piano over strings, rising orchestral layers into a triumphant swell at 100 BPM. Dramatic — perfect for short product reveals.</span></span>
+            </div>
+          </div>
+        </div>
       </div>
       <button id="generate-btn" onclick="submitDemo()">Generate Demo</button>
     </div>
@@ -103,6 +175,25 @@
     let currentJobId = null;
     let pollTimer = null;
 
+    function toggleOptions() {
+      const btn = document.getElementById('options-toggle');
+      const panel = document.getElementById('options-panel');
+      btn.classList.toggle('open');
+      panel.classList.toggle('open');
+    }
+
+    function getOptions() {
+      const opts = {};
+      const quality = document.getElementById('opt-quality').value;
+      if (quality !== 'medium') opts.videoQuality = quality;
+      const speed = document.getElementById('opt-speed').value;
+      if (speed !== 'normal') opts.speed = speed;
+      if (document.getElementById('opt-subtitles').checked) opts.subtitles = true;
+      const music = document.getElementById('opt-music').value;
+      if (music) opts.backgroundMusic = music;
+      return Object.keys(opts).length > 0 ? opts : undefined;
+    }
+
     async function submitDemo() {
       const siteUrl = document.getElementById('site-url').value.trim();
       const demoTask = document.getElementById('demo-task').value.trim();
@@ -126,7 +217,7 @@
         const res = await fetch('/demos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ siteUrl, demoTask }),
+          body: JSON.stringify({ siteUrl, demoTask, options: getOptions() }),
         });
 
         if (!res.ok) {

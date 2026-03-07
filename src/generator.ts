@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { ActionStep, DemoRequest } from "./types.js";
+import { ActionStep, DemoRequest, DemoOptions } from "./types.js";
 
 const SYSTEM_PROMPT = `You are a browser automation planner for Stagehand, an AI-powered browser automation tool.
 The output will be recorded as a demo video, so PACING matters — the viewer needs time to see what's happening.
@@ -74,12 +74,20 @@ const ACTION_SCHEMA = {
 };
 
 export async function generateActionPlan(
-  request: DemoRequest
+  request: DemoRequest,
+  options?: DemoOptions
 ): Promise<ActionStep[]> {
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+  let pacingHint = "";
+  if (options?.speed === "fast") {
+    pacingHint = "\n\nPACING OVERRIDE: Use shorter waits (1s max) and fewer steps. Keep the demo brisk — aim for 10-15 seconds total.";
+  } else if (options?.speed === "slow") {
+    pacingHint = "\n\nPACING OVERRIDE: Use longer waits (3-4s) and more steps. Let the viewer absorb each action — aim for 40-60 seconds total.";
+  }
+
   const userPrompt = `Website: ${request.siteUrl}
-Task: ${request.demoTask}
+Task: ${request.demoTask}${pacingHint}
 
 Generate the action plan.`;
 
