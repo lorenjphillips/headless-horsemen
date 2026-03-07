@@ -114,7 +114,8 @@ async function main() {
 
   // Stitch into video
   if (frameCount > 0) {
-    const outputVideo = path.join(OUTPUT_DIR, "demo.webm");
+    const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const outputVideo = path.join(OUTPUT_DIR, `demo-${ts}.webm`);
     console.log("Encoding video...");
     try {
       execSync(

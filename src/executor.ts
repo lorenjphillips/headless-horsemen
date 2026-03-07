@@ -181,7 +181,8 @@ export async function executeActionPlan(
   console.log(`[executor] Action log saved: ${actionLogPath}`);
 
   // Stitch frames into video with motion-interpolated 60fps
-  const videoPath = path.join(OUTPUT_DIR, "demo.mp4");
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const videoPath = path.join(OUTPUT_DIR, `demo-${timestamp}.mp4`);
   if (frameCount > 0) {
     const captureDuration = (Date.now() - captureStart) / 1000;
     const actualFps = Math.max(1, Math.round(frameCount / captureDuration));
