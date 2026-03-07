@@ -24,13 +24,13 @@
     "@google/genai": "^1.44.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "tsx": "^4.21.0",
     "webm-writer": "^1.0.0",
     "whammy": "^0.0.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^25.3.5",
-    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }
