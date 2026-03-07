@@ -26,42 +26,31 @@ Key takeaways:
 
 ---
 
-## Step 3: Gemini 3.1 script generation + execution ← NEXT
+## Step 3: Gemini 3.1 script generation + execution ✅ COMPLETE
 
-**The core product flow:**
-1. User provides: `{ siteUrl: "https://notion.so", demoTask: "Create a page and add a heading" }`
-2. Gemini 3.1 Pro generates a full Stagehand action plan (JSON)
-3. Stagehand executes the plan step-by-step while recording
+**What was built:**
+- `src/types.ts` — ActionStep (goto|act|wait), ActionLogEntry, DemoRequest types
+- `src/generator.ts` — Gemini 3.1 Pro generates ActionStep[] from DemoRequest
+  - Uses `@google/genai` SDK with structured JSON output (`responseMimeType` + `responseSchema`)
+  - System prompt explains Stagehand capabilities and prompting best practices
+  - Validates and converts raw Gemini output to typed ActionStep[]
+- `src/executor.ts` — Runs action plan via Stagehand + captures video
+  - Opens Browserbase browser with `google/gemini-2.5-flash`
+  - Background screenshot capture at ~15fps
+  - Executes goto/act/wait steps with error handling
+  - Saves `output/actions.json` (timestamped action log) + `output/demo.webm` (video)
+- `scripts/test-pipeline.ts` — End-to-end test
 
-### TODO
-- [ ] Install `@google/genai` package
-- [ ] Upgrade Stagehand model: `google/gemini-2.0-flash` → `google/gemini-2.5-flash`
-- [ ] Build `src/types.ts` — ActionStep, ActionLog types
-- [ ] Build `src/generator.ts`:
-  - Takes `{ siteUrl, demoTask }`
-  - Calls Gemini 3.1 Pro (`gemini-3.1-pro-preview`) with structured JSON output
-  - System prompt explains Stagehand capabilities (act, goto, wait)
-  - Returns: `ActionStep[]` — the full plan
-- [ ] Build `src/executor.ts`:
-  - Takes `ActionStep[]`
-  - Opens Browserbase browser via Stagehand
-  - Starts background screenshot capture (~5fps)
-  - Executes each step: `page.goto()` / `stagehand.act()` / `sleep()`
-  - Logs each action with timestamp
-  - Saves: frames + `output/actions.json`
-  - Stitches frames → `output/demo.webm` via ffmpeg
-- [ ] Build `scripts/test-pipeline.ts` — end-to-end test
-- [ ] Test with: `{ siteUrl: "https://github.com/browserbase/stagehand", demoTask: "Star the repository" }`
+**E2E test result:**
+- Input: `{ siteUrl: "https://github.com/browserbase/stagehand", demoTask: "Star the repository and then view the README file" }`
+- Gemini 3.1 Pro generated 6-step plan in ~2s
+- 5/6 steps succeeded (scroll failed because Star → GitHub login redirect, auth wall)
+- Output: `demo.webm` (0.10 MB, 30 frames) + `actions.json`
 
-### Action plan schema (Gemini output)
-```json
-[
-  { "action": "goto", "url": "https://github.com/browserbase/stagehand" },
-  { "action": "act", "instruction": "click the Star button" },
-  { "action": "wait", "seconds": 2 },
-  { "action": "act", "instruction": "click the Unstar button to confirm" }
-]
-```
+**Key findings:**
+- `gemini-3.1-pro-preview` works well for plan generation with structured output
+- Stagehand `scrollTo` with `google/gemini-2.5-flash` has an internal bug: returns empty `elementId` on some pages
+- Auth walls (GitHub star requires login) cause downstream action failures — need public targets or cookie injection
 
 ---
 

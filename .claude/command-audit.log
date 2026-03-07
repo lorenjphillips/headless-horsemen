@@ -117,3 +117,51 @@ Documents @google/genai SDK usage, JSON schema generation,
 model IDs, and structured output recipes for planner integration.
 EOF
 )"
+git add .claude/command-audit.log
+git commit -m "$(cat <<'EOF'
+Update command audit log
+EOF
+)"
+git status && git log --oneline -5
+git push origin master
+git add CLAUDE.md PROGRESS.md && git commit -m "$(cat <<'EOF'
+Fix architecture: Gemini 3.1 generates plan upfront, not agent loop
+
+User gives site URL + demo task → Gemini 3.1 generates full Stagehand
+action plan as JSON → Stagehand executes → post-production adds
+captions, zooms, transitions. Simpler, more reliable than a live loop.
+EOF
+)" && git push
+git add .gitignore && git commit -m "Add ORCHESTRATOR.md to gitignore" && git push
+npm install @google/genai
+ls /Users/lorenphillips/Personal/gemini-hackathon/src 2>/dev/null || echo "src/ does not exist yet"
+mkdir -p /Users/lorenphillips/Personal/gemini-hackathon/src
+npx tsx scripts/test-pipeline.ts 2>&1
+ls -la /Users/lorenphillips/Personal/gemini-hackathon/output/demo.webm /Users/lorenphillips/Personal/gemini-hackathon/output/actions.json
+git status
+git log --oneline -5
+git diff package.json
+git add package.json package-lock.json && git commit -m "$(cat <<'EOF'
+Add @google/genai SDK for Gemini structured output
+
+EOF
+)"
+git add scripts/test-stagehand.ts && git commit -m "$(cat <<'EOF'
+Upgrade Stagehand model to google/gemini-2.5-flash
+
+EOF
+)"
+git add src/types.ts src/generator.ts src/executor.ts && git commit -m "$(cat <<'EOF'
+Add core pipeline: types, generator, and executor
+
+- src/types.ts: ActionStep, ActionLogEntry, DemoRequest types
+- src/generator.ts: Gemini 3.1 Pro generates action plans from URL + task
+- src/executor.ts: Stagehand executes plans with screenshot capture + video output
+
+EOF
+)"
+git add scripts/test-pipeline.ts && git commit -m "$(cat <<'EOF'
+Add end-to-end pipeline test script
+
+EOF
+)"
