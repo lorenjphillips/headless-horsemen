@@ -1,0 +1,290 @@
+openapi: 3.0.3
+info:
+  title: DemoForge API
+  description: >
+    Generate polished demo videos from a website URL and task description.
+    An AI agent navigates the site, records browser actions, and outputs video.
+  version: 0.1.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://demoforge.up.railway.app
+    description: Railway deployment
+
+paths:
+  /demos:
+    post:
+      summary: Submit a demo generation request
+      description: >
+        Accepts a website URL and task description. Returns a job ID immediately.
+        The demo is generated asynchronously — poll GET /demos/{id} for status.
+        Only one demo can be generated at a time.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DemoRequest"
+            example:
+              siteUrl: "https://github.com/browserbase/stagehand"
+              demoTask: "Star the repository and view the README"
+      responses:
+        "201":
+          description: Demo job created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoJobCreated"
+        "400":
+          description: Invalid request (missing siteUrl or demoTask)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: A demo is already being generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "A demo is already being generated. Try again later."
+
+  /demos/{id}:
+    get:
+      summary: Get demo job status and result
+      description: >
+        Poll this endpoint to check the status of a demo generation job.
+        When status is "done", the response includes a videoUrl.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: demo_abc123
+      responses:
+        "200":
+          description: Demo job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoJob"
+        "404":
+          description: Demo job not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /demos/{id}/plan:
+    get:
+      summary: Get the generated action plan
+      description: >
+        Returns the AI-generated action plan for this demo. Available as soon
+        as the planning phase completes (before execution finishes).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Action plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DemoPlan"
+        "404":
+          description: Demo job not found
+        "409":
+          description: Plan not yet available (still in planning phase)
+
+  /demos/{id}/video:
+    get:
+      summary: Download the demo video
+      description: Returns the generated MP4 video file. Only available when status is "done".
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Video file
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Demo job not found or video not yet ready
+
+components:
+  schemas:
+    DemoRequest:
+      type: object
+      required:
+        - siteUrl
+        - demoTask
+      properties:
+        siteUrl:
+          type: string
+          format: uri
+          description: The website URL to demo
+          example: "https://github.com/browserbase/stagehand"
+        demoTask:
+          type: string
+          description: What the demo should show (natural language)
+          example: "Star the repository and view the README"
+
+    DemoJobCreated:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique job identifier
+          example: demo_abc123
+        status:
+          type: string
+          enum: [planning]
+          example: planning
+        createdAt:
+          type: string
+          format: date-time
+
+    DemoJob:
+      type: object
+      properties:
+        id:
+          type: string
+          example: demo_abc123
+        status:
+          type: string
+          enum: [planning, executing, encoding, done, failed]
+          description: >
+            planning = Gemini is generating the action plan.
+            executing = Stagehand is running the actions in the browser.
+            encoding = FFmpeg is encoding the video.
+            done = Video is ready.
+            failed = Something went wrong.
+        siteUrl:
+          type: string
+          format: uri
+        demoTask:
+          type: string
+        plan:
+          type: array
+          nullable: true
+          description: Available once planning is complete
+          items:
+            $ref: "#/components/schemas/ActionStep"
+        actionLog:
+          type: array
+          nullable: true
+          description: Available once execution is complete
+          items:
+            $ref: "#/components/schemas/ActionLogEntry"
+        progress:
+          $ref: "#/components/schemas/Progress"
+        videoUrl:
+          type: string
+          nullable: true
+          description: URL to download the video (available when status is done)
+          example: /demos/demo_abc123/video
+        error:
+          type: string
+          nullable: true
+          description: Error message if status is failed
+        durationMs:
+          type: integer
+          nullable: true
+          description: Total pipeline duration in milliseconds
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ActionStep:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum: [goto, act, wait, scroll]
+        url:
+          type: string
+          nullable: true
+          description: Required when action is "goto"
+        instruction:
+          type: string
+          nullable: true
+          description: Required when action is "act"
+        seconds:
+          type: number
+          nullable: true
+          description: Required when action is "wait"
+        direction:
+          type: string
+          enum: [up, down]
+          nullable: true
+          description: Required when action is "scroll"
+        pixels:
+          type: integer
+          nullable: true
+
+    ActionLogEntry:
+      type: object
+      properties:
+        step:
+          type: integer
+          description: 0-indexed step number
+        action:
+          $ref: "#/components/schemas/ActionStep"
+        timestamp_ms:
+          type: integer
+          description: Milliseconds since execution started
+        success:
+          type: boolean
+        error:
+          type: string
+          nullable: true
+
+    Progress:
+      type: object
+      nullable: true
+      description: Available during execution phase
+      properties:
+        currentStep:
+          type: integer
+        totalSteps:
+          type: integer
+        currentAction:
+          type: string
+          description: Human-readable description of the current action
+
+    DemoPlan:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        plan:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActionStep"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "siteUrl is required"

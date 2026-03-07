@@ -11,6 +11,11 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.resolve("public")));
 
+// Serve OpenAPI spec
+app.get("/openapi.yaml", (_req, res) => {
+  res.sendFile(path.resolve("design/openapi.yaml"));
+});
+
 // --------------- Job types ---------------
 
 type JobStatus = "planning" | "executing" | "encoding" | "done" | "failed";
