@@ -94,9 +94,6 @@
     .music-pill:hover { border-color: var(--border-subtle); color: var(--text-body); }
     .music-pill.active { background: var(--active-pill-bg); border-color: var(--accent); color: var(--active-pill-text); box-shadow: var(--glow-sm); }
 
-    .toggle-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--text-dim); cursor: not-allowed; }
-    .toggle-label input[type="checkbox"] { accent-color: var(--accent); }
-    .coming-soon { font-size: 0.7rem; color: var(--text-dim); margin-left: 0.15rem; }
   </style>
 </head>
 <body>
@@ -150,10 +147,11 @@
           </div>
         </div>
         <div class="opt-row">
-          <label class="toggle-label">
-            <input type="checkbox" id="opt-subtitles" disabled />
-            Subtitles <span class="coming-soon">(coming soon)</span>
-          </label>
+          <div class="opt-label">Subtitles</div>
+          <div class="seg-control" id="opt-subtitles" data-value="off">
+            <button class="seg-btn active" data-val="off" onclick="setSeg(this)">Off</button>
+            <button class="seg-btn" data-val="on" onclick="setSeg(this)">On</button>
+          </div>
         </div>
       </div>
       <button id="generate-btn" onclick="submitDemo()">Generate Demo</button>
@@ -211,7 +209,7 @@
       if (quality !== 'medium') opts.videoQuality = quality;
       const speed = document.getElementById('opt-speed').dataset.value;
       if (speed !== 'normal') opts.speed = speed;
-      if (document.getElementById('opt-subtitles').checked) opts.subtitles = true;
+      if (document.getElementById('opt-subtitles').dataset.value === 'on') opts.subtitles = true;
       const music = document.getElementById('opt-music').dataset.value;
       if (music) opts.backgroundMusic = music;
       return Object.keys(opts).length > 0 ? opts : undefined;
