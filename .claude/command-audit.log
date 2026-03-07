@@ -214,3 +214,52 @@ git add CLAUDE.md && git commit -m "$(cat <<'EOF'
 Add workflow rule: user runs pipeline, not the agent
 EOF
 )"
+git add .claude/command-audit.log && git commit -m "$(cat <<'EOF'
+Update command audit log
+EOF
+)"
+git push origin master
+git status && echo "---" && git log --oneline -5
+npm install express && npm install -D @types/express
+ls /Users/lorenphillips/Personal/gemini-hackathon/src/
+mkdir -p /Users/lorenphillips/Personal/gemini-hackathon/public
+npx tsx --eval "import './src/server.js'" 2>&1 | head -20
+npx tsx --eval "require('./src/server.ts')" 2>&1 | head -5
+cat /private/tmp/claude-501/-Users-lorenphillips-Personal-gemini-hackathon/tasks/be8ncccp4.output
+timeout 5 npx tsx src/server.ts 2>&1 || true
+npx tsx src/server.ts > /tmp/demoforge-server.log 2>&1 &
+cat /tmp/demoforge-server.log 2>/dev/null; echo "---"; cat /private/tmp/claude-501/-Users-lorenphillips-Personal-gemini-hackathon/tasks/bk8qpia9y.output 2>/dev/null
+curl -s http://localhost:3000 | head -5
+curl -s -X POST http://localhost:3000/demos -H "Content-Type: application/json" -d '{"siteUrl":"https://example.com","demoTask":"test"}'
+lsof -ti :3000 | xargs kill 2>/dev/null; echo "done"
+git status -u && echo "---" && git log --oneline -3
+git add src/executor.ts && git commit -m "$(cat <<'EOF'
+Switch video output from VP9/webm to H.264/mp4 for universal playback
+
+Also add per-job output directory and progress callback support to executor.
+EOF
+)"
+git add package.json package-lock.json && git commit -m "$(cat <<'EOF'
+Add express server dependencies and npm start script
+EOF
+)"
+git add src/server.ts && git commit -m "$(cat <<'EOF'
+Add Express API server with async job pipeline
+
+POST /demos creates job, runs generate+execute in background.
+GET /demos/:id polls status with progress tracking.
+GET /demos/:id/video serves the final mp4.
+In-memory job store, one-at-a-time execution.
+EOF
+)"
+git add public/index.html && git commit -m "$(cat <<'EOF'
+Add single-page UI with live progress tracking
+
+Dark theme, form input, polling-based progress with action plan
+checkmarks, video player, and download button.
+EOF
+)"
+git add design/api-design.md && git commit -m "$(cat <<'EOF'
+Add API design doc with endpoints, OpenAPI spec, and deployment plan
+EOF
+)"
