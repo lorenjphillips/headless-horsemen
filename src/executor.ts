@@ -37,8 +37,7 @@ export async function executeActionPlan(
   // Viewport
   const viewport = demoOpts.viewport ?? { width: 1280, height: 720 };
 
-  // Log future features
-  if (demoOpts.subtitles) console.log("[executor] TODO: subtitles enabled (not yet implemented)");
+  const subtitlesEnabled = demoOpts.subtitles ?? false;
 
   // Resolve music track path
   const musicTrack = demoOpts.backgroundMusic
@@ -226,6 +225,84 @@ export async function executeActionPlan(
           err2.stderr?.toString().slice(-500) || err2.message
         );
       }
+    }
+  }
+
+  // Burn subtitles if enabled
+  if (subtitlesEnabled && actionLog.length > 0 && fs.existsSync(videoPath)) {
+    console.log("[executor] Generating subtitles...");
+    try {
+      // Get video duration
+      const durationStr = execSync(
+        `ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`,
+        { encoding: "utf8", timeout: 10000 }
+      ).trim();
+      const videoDurationMs = parseFloat(durationStr) * 1000;
+
+      // Build ASS file from action log
+      const assPath = path.join(OUTPUT_DIR, "captions.ass");
+      const assHeader = `[Script Info]
+Title: Headless Horsemen Captions
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: ${viewport.width}
+PlayResY: ${viewport.height}
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,26,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,2,0,2,40,40,50,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
+
+      const msToASS = (ms: number): string => {
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        const s = Math.floor((ms % 60000) / 1000);
+        const cs = Math.floor((ms % 1000) / 10);
+        return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+      };
+
+      let dialogues = "";
+      for (let i = 0; i < actionLog.length; i++) {
+        const entry = actionLog[i];
+        const startMs = entry.timestamp_ms;
+        const endMs = actionLog[i + 1]?.timestamp_ms ?? videoDurationMs;
+        if (endMs <= startMs) continue;
+
+        let text = "";
+        const a = entry.action;
+        if (a.action === "goto") text = `Navigating to ${a.url}`;
+        else if (a.action === "act") text = a.instruction;
+        else if (a.action === "scroll") text = `Scrolling ${a.direction}`;
+        else if (a.action === "wait") text = `Waiting ${a.seconds}s...`;
+        if (!text) continue;
+
+        dialogues += `Dialogue: 0,${msToASS(startMs)},${msToASS(endMs)},Default,,0,0,0,,${text}\n`;
+      }
+
+      fs.writeFileSync(assPath, assHeader + dialogues);
+      console.log(`[executor] ASS file written: ${assPath}`);
+
+      // Burn captions + fade in/out
+      const fadeDuration = 0.8;
+      const fadeOutStart = Math.max(0, parseFloat(durationStr) - fadeDuration);
+      const captionedPath = path.join(OUTPUT_DIR, "demo_captioned.mp4");
+
+      execSync(
+        `ffmpeg -y -i "${videoPath}" ` +
+          `-vf "ass=${assPath},fade=t=in:st=0:d=${fadeDuration},fade=t=out:st=${fadeOutStart}:d=${fadeDuration}" ` +
+          `-c:v libx264 -pix_fmt yuv420p -b:v ${quality.bitrate} "${captionedPath}"`,
+        { stdio: "pipe", timeout: 300000 }
+      );
+
+      // Replace original with captioned version
+      fs.renameSync(captionedPath, videoPath);
+      console.log("[executor] Subtitles burned successfully.");
+    } catch (err: any) {
+      console.error("[executor] Subtitle burning failed:", err.stderr?.toString().slice(-300) || err.message);
+      // Keep the video without subtitles
     }
   }
 
