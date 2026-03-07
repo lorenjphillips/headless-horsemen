@@ -165,3 +165,52 @@ Add end-to-end pipeline test script
 
 EOF
 )"
+git add PROGRESS.md .claude/command-audit.log && git commit -m "$(cat <<'EOF'
+Mark Step 3 complete: Gemini script generation + execution pipeline working
+
+EOF
+)"
+git push origin master
+npx tsx scripts/test-pipeline.ts 2>&1
+npx tsx scripts/test-pipeline.ts 2>&1
+ls /Users/lorenphillips/Personal/gemini-hackathon/
+cat /Users/lorenphillips/Personal/gemini-hackathon/package.json
+mkdir -p /Users/lorenphillips/Personal/gemini-hackathon/design && mv /Users/lorenphillips/Personal/gemini-hackathon/API_DESIGN.md /Users/lorenphillips/Personal/gemini-hackathon/design/api-design.md
+find /Users/lorenphillips/Personal/gemini-hackathon/node_modules/puppeteer-core -name "ScreenRecorder*" -o -name "screencast*" 2>/dev/null | head -10
+ls /Users/lorenphillips/Personal/gemini-hackathon/node_modules/@browserbasehq/ 2>/dev/null
+git log --oneline -10
+npx tsx scripts/test-pipeline.ts 2>&1
+git status
+git diff --stat
+git log --oneline -5
+git add src/types.ts && git commit -m "$(cat <<'EOF'
+Add scroll action type for smooth incremental scrolling
+EOF
+)"
+git add src/generator.ts && git commit -m "$(cat <<'EOF'
+Add scroll action to generator, improve pacing for demo videos
+
+- Dedicated scroll action with direction + pixels (no more broken act scroll)
+- System prompt now optimizes for demo video pacing (10-20 steps, wait between actions)
+- Gemini told to use multiple incremental scrolls instead of one big jump
+EOF
+)"
+git add src/executor.ts && git commit -m "$(cat <<'EOF'
+JPEG capture + 60fps motion interpolation for smooth video
+
+- Switch screenshots from PNG to JPEG (5-10x faster CDP transfer)
+- Remove artificial sleep bottleneck in capture loop
+- Smooth scrolling via window.scrollBy with behavior: smooth
+- ffmpeg minterpolate upscales raw ~4-12fps to 60fps output
+- Fallback to simple fps=60 if minterpolate fails
+- Increased bitrate to 6M for higher quality
+EOF
+)"
+git add scripts/test-pipeline.ts && git commit -m "$(cat <<'EOF'
+Update test pipeline target to Mintlify blog
+EOF
+)"
+git add CLAUDE.md && git commit -m "$(cat <<'EOF'
+Add workflow rule: user runs pipeline, not the agent
+EOF
+)"
