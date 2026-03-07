@@ -43,18 +43,17 @@ User Prompt
           │
           ▼
 ┌─────────────────────────┐
-│  4. MUSIC (Lyria)       │  Generate a short background beat
-│     - Match duration    │  Matching the video duration
-│     - Lo-fi/upbeat vibe │
+│  4. COMPOSE (FFmpeg)    │  Combine everything:
+│     - Video + captions  │  - Browser recording
+│     - Trim/transitions  │  - Burned-in captions
+│     - Final render      │  Output: MP4 file
 └─────────┬───────────────┘
           │
           ▼
 ┌─────────────────────────┐
-│  5. COMPOSE (FFmpeg)    │  Combine everything:
-│     - Video + captions  │  - Browser recording
-│     - Video + music     │  - Burned-in captions
-│     - Trim/transitions  │  - Background music
-│     - Final render      │  Output: MP4 file
+│  5. MUSIC (Lyria)       │  Stretch: generate background beat
+│     - No public API yet │  May need alternative approach
+│     - Lo-fi/upbeat vibe │  (or use a royalty-free track)
 └─────────────────────────┘
 ```
 
@@ -75,21 +74,21 @@ User Prompt
 - Send screenshots + action context to Gemini for caption generation
 - Output: array of `{ timestamp, caption_text }`
 
-### Step 4: Lyria music generation
-- Call Lyria API to generate a short background track
-- Match duration to the recorded video length
-- Output: audio file (`.mp3` or `.wav`)
-
-### Step 5: FFmpeg composition
+### Step 4: FFmpeg composition
 - Burn captions into video (ASS/SRT subtitles or drawtext filter)
-- Mix in background music at low volume
 - Trim dead time, add fade in/out
 - Output: final `.mp4`
 
-### Step 6 (Stretch): ChromaDB for template reuse
+### Step 5 (Stretch): ChromaDB for template reuse
 - Embed successful demo step sequences into ChromaDB
 - On new prompt, semantic search for similar past demos
 - Use retrieved steps as few-shot examples for Gemini planning
+
+### Step 6 (Stretch): Lyria music generation
+- No public API currently available — investigate access during hackathon
+- If available: generate a short background track matching video duration
+- Fallback: use a royalty-free lo-fi track and mix via FFmpeg
+- Output: audio file (`.mp3` or `.wav`), mixed into final video
 
 ## Project Structure
 
