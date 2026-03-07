@@ -6,13 +6,13 @@
 
 | Tool | Role |
 |------|------|
-| **Gemini 2.5 Flash** | Stagehand browser actions (fast, cheap) — model ID: `google/gemini-2.5-flash` |
-| **Gemini 2.5 Pro** | Planner + caption generation (smart reasoning) — model ID: `gemini-2.5-pro` |
-| **Stagehand** (Browserbase) | Browser automation — AI-native web agent that executes actions |
-| **Playwright** | NOT used for video — Stagehand v3 uses CDP, not Playwright |
+| **Gemini 3.1 Pro** | Agentic brain — observes page, decides actions, iterates in a loop |
+| **Gemini 2.5 Flash** | Stagehand's built-in model for `act()` / `observe()` — model ID: `google/gemini-2.5-flash` |
+| **`@google/genai`** | Gemini SDK (**NOT** `@google/generative-ai` which is deprecated) |
+| **Stagehand** (Browserbase) | Browser automation — executes actions via natural language |
 | **FFmpeg** | Video post-processing — trim, captions, transitions, combine audio |
-| **Lyria** (Google DeepMind) | Generates background music/beat for the demo |
-| **ChromaDB** | *Stretch goal* — vector store for reusable demo step templates |
+| **Lyria** (Google DeepMind) | *Stretch* — background music generation |
+| **ChromaDB** | *Stretch* — vector store for reusable demo step templates |
 
 ## Pipeline Architecture
 
@@ -20,105 +20,110 @@
 User Prompt
     │
     ▼
-┌─────────────────────────┐
-│  1. PLAN (Gemini)       │  Prompt → structured action steps
-│     - Parse user intent │  Output: JSON array of browser actions
-│     - Identify target   │  (go to URL, click X, type Y, wait, etc.)
-│     - Generate steps    │
-└─────────┬───────────────┘
+┌──────────────────────────────────────────────────┐
+│  1. AGENT LOOP (Gemini 3.1 Pro + Stagehand)      │
+│                                                    │
+│     Gemini 3.1 is the BRAIN. Each iteration:       │
+│     ┌──────────────────────────────────┐           │
+│     │ a. Observe page (screenshot +    │           │
+│     │    stagehand.observe())          │           │
+│     │ b. Gemini decides next action    │           │
+│     │ c. Stagehand executes action     │           │
+│     │ d. Screenshot captured (frame)   │           │
+│     │ e. Gemini checks: done or next?  │           │
+│     └──────────┬───────────────────────┘           │
+│                │ loop until task complete           │
+│     Output: frames[] + action log                  │
+└─────────┬────────────────────────────────────────┘
           │
           ▼
 ┌─────────────────────────┐
-│  2. EXECUTE (Stagehand) │  Run actions in cloud browser via Browserbase
-│     - Playwright record │  Playwright captures video of the session
-│     - Screenshot key    │  Screenshots at key moments for captions
-│       moments           │
-└─────────┬───────────────┘
-          │
-          ▼
-┌─────────────────────────┐
-│  3. NARRATE (Gemini)    │  Gemini reviews screenshots + actions
-│     - Generate captions │  Produces timed caption text
+│  2. NARRATE (Gemini)    │  Review action log + key screenshots
+│     - Generate captions │  Produce timed caption text
 │     - Summarize steps   │  (e.g., "Now we click 'New Task'...")
 └─────────┬───────────────┘
           │
           ▼
 ┌─────────────────────────┐
-│  4. COMPOSE (FFmpeg)    │  Combine everything:
-│     - Video + captions  │  - Browser recording
-│     - Trim/transitions  │  - Burned-in captions
-│     - Final render      │  Output: MP4 file
-└─────────┬───────────────┘
-          │
-          ▼
-┌─────────────────────────┐
-│  5. MUSIC (Lyria)       │  Stretch: generate background beat
-│     - No public API yet │  May need alternative approach
-│     - Lo-fi/upbeat vibe │  (or use a royalty-free track)
+│  3. COMPOSE (FFmpeg)    │  Combine everything:
+│     - Frames → video    │  - Stitched screenshots
+│     - Burn captions     │  - Burned-in captions
+│     - Trim/transitions  │  Output: MP4 file
 └─────────────────────────┘
 ```
+
+**Key difference from v1 plan:** Gemini 3.1 is NOT just a one-shot planner. It's an **agentic loop** — it observes the page, decides what to do, executes, checks the result, and keeps going until the task is done. No pre-planned JSON array. The model reacts to what it actually sees.
 
 ## Implementation Steps
 
 ### Step 1: Stagehand + screen recording ✅ DONE
 - Set up Stagehand with Browserbase cloud browser
 - Stagehand v3 uses its own CDP layer, NOT Playwright — `recordVideo` is unavailable
-- Browserbase `recordSession: true` captures rrweb data (DOM), not video
 - **Working approach**: periodic `page.screenshot()` at ~5fps → ffmpeg stitches into `.webm`
-- NotebookLM requires Google auth — switched to GitHub (public) for initial test
 - Tested: navigates GitHub repo, clicks elements via `act()`, outputs `output/demo.webm`
 
-### Step 2: Gemini prompt → action plan
-- Send user prompt to Gemini, get back structured action steps (JSON)
-- Define action schema: `{ action: "goto"|"click"|"type"|"wait"|"scroll", selector?: string, text?: string, url?: string }`
-- Feed action plan into Stagehand for execution
+### Step 2: Gemini research ✅ DONE
+- `@google/genai` is the correct SDK (NOT `@google/generative-ai` — deprecated)
+- JSON schema-constrained output works via `responseMimeType` + `responseSchema`
+- System prompts via `config.systemInstruction`
+- Structured output NOT compatible with thinking mode
+- Stagehand `act()` = one action per call, describe by element type/label not visuals
+- See RESEARCH.md for full findings and code patterns
 
-### Step 3: Screenshot capture + caption generation
-- Capture screenshots at each action step during execution
-- Send screenshots + action context to Gemini for caption generation
-- Output: array of `{ timestamp, caption_text }`
+### Step 3: Gemini 3.1 agentic loop ← CURRENT
+Build `src/agent.ts` — the core agentic loop:
+1. Take user prompt + target URL
+2. Open Browserbase browser via Stagehand
+3. Start screenshot capture loop (background, ~5fps)
+4. **Loop:**
+   a. Take screenshot of current page state
+   b. Send screenshot + prompt + action history to Gemini 3.1 Pro
+   c. Gemini responds with next action (JSON): `{ action, instruction?, url?, done? }`
+   d. Execute action via Stagehand `act()` / `page.goto()` / wait
+   e. Log the action to action history
+   f. If `done: true` → break
+5. Stop screenshot capture, stitch frames → video via ffmpeg
+6. Output: `output/demo.webm` + `output/actions.json` (action log)
 
-### Step 4: FFmpeg composition
-- Burn captions into video (ASS/SRT subtitles or drawtext filter)
-- Trim dead time, add fade in/out
+**Test**: "Go to github.com/browserbase/stagehand and star the repository"
+
+### Step 4: Caption generation + FFmpeg composition
+- Send action log + key screenshots to Gemini → timed captions
+- FFmpeg burns captions into video, trims dead time, adds fade
 - Output: final `.mp4`
 
 ### Step 5 (Stretch): ChromaDB for template reuse
-- Embed successful demo step sequences into ChromaDB
+- Embed successful action logs into ChromaDB
 - On new prompt, semantic search for similar past demos
-- Use retrieved steps as few-shot examples for Gemini planning
+- Use retrieved logs as few-shot context for the agent
 
 ### Step 6 (Stretch): Lyria music generation
 - No public API currently available — investigate access during hackathon
-- If available: generate a short background track matching video duration
-- Fallback: use a royalty-free lo-fi track and mix via FFmpeg
-- Output: audio file (`.mp3` or `.wav`), mixed into final video
+- Fallback: royalty-free lo-fi track mixed via FFmpeg
 
 ## Project Structure
 
 ```
 src/
-  pipeline.ts          # Main orchestrator — runs steps 1-5
-  planner.ts           # Gemini prompt → action steps
-  executor.ts          # Stagehand browser execution + Playwright recording
-  narrator.ts          # Gemini caption generation from screenshots
-  music.ts             # Lyria music generation
-  composer.ts          # FFmpeg video + audio + captions composition
-  types.ts             # Shared types (ActionStep, Caption, etc.)
+  agent.ts             # Core agentic loop — Gemini 3.1 observes + decides + acts
+  narrator.ts          # Gemini caption generation from action log + screenshots
+  composer.ts          # FFmpeg video + captions composition
+  types.ts             # Shared types (AgentAction, Caption, etc.)
+  pipeline.ts          # Main orchestrator — agent → narrate → compose
 scripts/
-  test-stagehand.ts    # Quick test: run hardcoded actions, get video
-  test-gemini.ts       # Quick test: prompt → action plan
-  test-ffmpeg.ts       # Quick test: combine video + audio + captions
+  test-stagehand.ts    # ✅ Quick test: hardcoded actions, get video
+  test-gemini.ts       # Quick test: prompt → single action response
+  test-agent.ts        # End-to-end: prompt → agentic loop → video
 ```
 
 ## Dev Setup
 
 ```bash
-npm init -y
-npm install @anthropic-ai/sdk @google/generative-ai @browserbasehq/stagehand playwright chromadb
+npm install @google/genai @browserbasehq/stagehand dotenv
 npm install -D typescript tsx @types/node
-npx tsc --init
 ```
+
+**NOTE:** `@google/generative-ai` is DEPRECATED. Use `@google/genai` — different API shape. See RESEARCH.md.
 
 Env vars needed:
 ```
@@ -129,19 +134,21 @@ BROWSERBASE_PROJECT_ID=
 
 ## Gemini Models (as of March 2026)
 
-Use the **latest stable** models. Stagehand model names use `google/` prefix.
+Stagehand model names use `google/` prefix. Direct API calls use bare model IDs.
 
 | Use Case | Model ID | Notes |
 |----------|----------|-------|
-| Stagehand `act()` / `observe()` | `google/gemini-2.5-flash` | Fast, cheap, good for browser actions |
-| Planner (prompt → action steps) | `gemini-2.5-pro` | Smart reasoning for complex plans |
-| Caption generation | `gemini-2.5-pro` | Multimodal — can analyze screenshots |
-| Bleeding edge (if needed) | `gemini-3.1-pro-preview` | Preview only, deprecating March 9 2026 |
+| **Agent brain** (agentic loop) | `gemini-3.1-pro-preview` | Smartest reasoning, agentic workflows |
+| Stagehand `act()` / `observe()` | `google/gemini-2.5-flash` | Fast + cheap for browser action execution |
+| Caption generation | `gemini-2.5-flash` | Multimodal, fast enough for post-processing |
+| Fallback if 3.1 is slow | `gemini-2.5-pro` | Stable, strong reasoning |
 
 Available Gemini 3 models (all preview):
-- `gemini-3.1-pro-preview`
-- `gemini-3.1-flash-lite-preview`
+- `gemini-3.1-pro-preview` — **USE THIS for agent brain**
+- `gemini-3.1-flash-lite-preview` — fast + cheap
 - `gemini-3-flash-preview`
+
+**NOTE:** `gemini-3-pro-preview` is deprecated March 9 2026. Use `gemini-3.1-pro-preview`.
 
 ## Key Learnings
 - **Stagehand v3** uses its own CDP layer ("understudy"), NOT Playwright
