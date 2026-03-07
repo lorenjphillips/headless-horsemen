@@ -27,13 +27,12 @@
 
 ---
 
-<h3 align="center">Demo</h3>
+<h3 align="center">Director Demo</h3>
+<p align="center"><em>Impersonating Connor's Browserbase Director launch demo — fully AI-generated</em></p>
 
-<p align="center">
-  <video src="demo/director-demo.mp4" width="600" controls></video>
-</p>
+https://github.com/lorenjphillips/headless-horsemen/raw/master/demo/director-demo.mp4
 
-> **Director Demo** — AI navigates Google Maps to find gas station prices along a trucking route, then generates deployable Stagehand code. Fully autonomous, narrated by Gemini TTS.
+> Headless Horsemen autonomously recreates a Browserbase Director product demo — navigating the site, walking through features, and generating deployable Stagehand code. Narrated end-to-end by Gemini TTS.
 
 ---
 
