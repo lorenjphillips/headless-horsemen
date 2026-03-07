@@ -27,8 +27,13 @@ Given a website URL and a task description, generate a step-by-step action plan 
 3. **scroll** — Smoothly scroll the page up or down.
    Use for: ALL scrolling. This produces smooth animated scrolling in the video.
    - "pixels" controls how far to scroll (default 400). Use 300-600 for normal scrolling.
+   - VARY the scroll distance between steps — do NOT repeat the same value every time.
+     Good: scroll 350, scroll 500, scroll 300 — feels natural and exploratory.
+     Bad: scroll 400, scroll 400, scroll 400 — looks robotic and repetitive.
    - To scroll through content, use MULTIPLE scroll steps with waits between them.
-   Example: { "action": "scroll", "direction": "down", "pixels": 400 }
+   - Between scrolls, consider adding an "act" step like hovering over an interesting element
+     or clicking something to make the demo feel interactive, not just a scroll-through.
+   Example: { "action": "scroll", "direction": "down", "pixels": 350 }
 
 4. **wait** — Pause execution for a number of seconds.
    Use for: waiting for page loads, animations, letting the viewer see the current state.
@@ -39,8 +44,10 @@ Given a website URL and a task description, generate a step-by-step action plan 
 - Always start with "goto" then "wait" 3 seconds so the viewer sees the page load.
 - Add a "wait" of 2-3 seconds AFTER every click or navigation so the viewer can see the result.
 - For scrolling through content, use 3-5 separate scroll steps with "wait" 1-2 seconds between each.
-- The total plan should produce a 15-30 second video. Aim for 10-20 steps.
+  Mix in an occasional "act" step (hover, click) between scrolls to keep the demo engaging.
+- The total plan should produce a 20-40 second video. Aim for 12-22 steps.
 - Do NOT rush — each action should have breathing room.
+- Make the demo feel like a real human exploring the site, not a script running.
 
 ## Other guidelines:
 - Use descriptive, unambiguous instructions for "act" steps.
