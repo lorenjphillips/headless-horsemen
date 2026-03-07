@@ -354,9 +354,8 @@ async function main() {
   await actAndTrack("click on the text input bar", "automate");
   await sleep(1500);
 
-  // 4. Narration
-  await narrate("With Director you can explain your browser automation in natural language.");
-  await narrate("Today let's get the average gas prices along a truck route.");
+  // 4. Narration (single clip to avoid pause before clicking)
+  await narrate("With Director you can explain your browser automation in natural language. Today let's get the average gas prices along a truck route.");
 
   // 5. Click the suggestion — triggers LLM generation
   console.log("[demo] → Click gas price suggestion");
@@ -431,22 +430,12 @@ async function main() {
   // =====================================================================
 
   const rawVideo = path.join(OUTPUT_DIR, "raw.mp4");
-  console.log("\n[demo] Encoding video (30fps, high quality)...");
-  try {
-    execSync(
-      `ffmpeg -y -framerate ${fps} -i "${RENDERED_DIR}/frame_%05d.jpg" ` +
-      `-vf "minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" ` +
-      `-c:v libx264 -pix_fmt yuv420p -b:v 4M "${rawVideo}"`,
-      { stdio: "inherit", timeout: 1200000 }
-    );
-  } catch {
-    console.log("[demo] minterpolate failed, falling back to simple encode...");
-    execSync(
-      `ffmpeg -y -framerate ${fps} -i "${RENDERED_DIR}/frame_%05d.jpg" ` +
-      `-vf "fps=30" -c:v libx264 -pix_fmt yuv420p -b:v 4M "${rawVideo}"`,
-      { stdio: "inherit", timeout: 600000 }
-    );
-  }
+  console.log("\n[demo] Encoding video (30fps)...");
+  execSync(
+    `ffmpeg -y -framerate ${fps} -i "${RENDERED_DIR}/frame_%05d.jpg" ` +
+    `-vf "fps=30" -c:v libx264 -pix_fmt yuv420p -b:v 4M "${rawVideo}"`,
+    { stdio: "inherit", timeout: 600000 }
+  );
   console.log(`[demo] Raw video: ${(fs.statSync(rawVideo).size / 1024 / 1024).toFixed(1)} MB`);
 
   // Mix narration
