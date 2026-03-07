@@ -27,7 +27,15 @@
 
 ---
 
-<!-- 🎬 Demo video placeholder — drop link here -->
+<h3 align="center">Demo</h3>
+
+<p align="center">
+  <video src="demo/director-demo.mp4" width="600" controls></video>
+</p>
+
+> **Director Demo** — AI navigates Google Maps to find gas station prices along a trucking route, then generates deployable Stagehand code. Fully autonomous, narrated by Gemini TTS.
+
+---
 
 ## What is this?
 
