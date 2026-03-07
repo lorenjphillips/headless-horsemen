@@ -154,8 +154,12 @@ async function runPipeline(job: DemoJob) {
     console.log(`[server] Job ${job.id}: executing ${steps.length} steps...`);
     const { videoPath, actionLog } = await executeActionPlan(steps, {
       outputDir: jobDir,
-      onProgress: (currentStep, totalSteps, label) => {
-        job.progress = { currentStep, totalSteps, currentAction: label };
+      onProgress: (currentStep, totalSteps, label, done) => {
+        job.progress = {
+          currentStep: done ? currentStep + 1 : currentStep,
+          totalSteps,
+          currentAction: done ? `completed: ${label}` : label,
+        };
       },
     });
 
