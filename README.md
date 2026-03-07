@@ -17,13 +17,11 @@
   <a href="#issues-we-solved">Issues We Solved</a>
 </p>
 
-<p align="center">
-  <a href="https://ai.google.dev/"><img src="public/sponsors/gemini.png" alt="Google Gemini" height="30" /></a>
-  &nbsp;&nbsp;&nbsp;
-  <a href="https://www.browserbase.com/"><img src="public/sponsors/browserbase.png" alt="Browserbase" height="30" /></a>
-  &nbsp;&nbsp;&nbsp;
-  <a href="https://www.trychroma.com/"><img src="public/sponsors/chroma.svg" alt="Chroma" height="30" /></a>
-</p>
+<table align="center"><tr>
+<td align="center"><a href="https://ai.google.dev/"><img src="public/sponsors/gemini.png" alt="Google Gemini" height="30" /></a></td>
+<td align="center"><a href="https://www.browserbase.com/"><img src="public/sponsors/browserbase.png" alt="Browserbase" height="30" /></a></td>
+<td align="center"><a href="https://www.trychroma.com/"><img src="public/sponsors/chroma.svg" alt="Chroma" height="30" /></a></td>
+</tr></table>
 
 ---
 
