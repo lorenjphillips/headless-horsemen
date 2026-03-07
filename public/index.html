@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DemoForge</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; }
+    .container { max-width: 640px; margin: 0 auto; padding: 2rem 1rem; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #222; }
+    header h1 { font-size: 1.5rem; font-weight: 700; color: #fff; }
+    header span { font-size: 0.75rem; color: #666; background: #1a1a1a; padding: 0.25rem 0.5rem; border-radius: 4px; }
+
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-size: 0.85rem; color: #999; margin-bottom: 0.35rem; }
+    input, textarea { width: 100%; padding: 0.65rem 0.75rem; background: #141414; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 0.95rem; outline: none; transition: border-color 0.15s; }
+    input:focus, textarea:focus { border-color: #5b6ef5; }
+    textarea { resize: vertical; min-height: 60px; }
+
+    button { padding: 0.7rem 1.5rem; background: #5b6ef5; color: #fff; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+    button:hover { background: #4a5ce3; }
+    button:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+    .section { margin-top: 1.5rem; padding: 1rem; background: #111; border: 1px solid #222; border-radius: 8px; }
+    .section h2 { font-size: 1rem; margin-bottom: 0.75rem; color: #ccc; }
+
+    .status-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .status-text { font-size: 0.9rem; }
+    .spinner { width: 18px; height: 18px; border: 2px solid #333; border-top-color: #5b6ef5; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .progress-bar { width: 100%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; margin-bottom: 1rem; }
+    .progress-fill { height: 100%; background: #5b6ef5; transition: width 0.3s ease; border-radius: 3px; }
+
+    .step-list { list-style: none; }
+    .step-list li { padding: 0.35rem 0; font-size: 0.85rem; color: #888; display: flex; align-items: flex-start; gap: 0.5rem; }
+    .step-list li.done { color: #4ade80; }
+    .step-list li.current { color: #5b6ef5; font-weight: 600; }
+    .step-list li.pending { color: #555; }
+    .step-icon { flex-shrink: 0; width: 1.1em; text-align: center; }
+
+    video { width: 100%; border-radius: 6px; background: #000; margin-bottom: 0.75rem; }
+
+    .error-banner { background: #2a1010; border: 1px solid #5c2020; color: #f87171; padding: 0.75rem 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.9rem; }
+
+    .btn-row { display: flex; gap: 0.75rem; margin-top: 0.75rem; }
+    .btn-secondary { background: #222; color: #ccc; }
+    .btn-secondary:hover { background: #333; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>DemoForge</h1>
+      <span>Gemini Hackathon</span>
+    </header>
+
+    <!-- Input form -->
+    <div id="form-section">
+      <div class="form-group">
+        <label for="site-url">Website URL</label>
+        <input id="site-url" type="url" placeholder="https://example.com" value="" />
+      </div>
+      <div class="form-group">
+        <label for="demo-task">What should the demo show?</label>
+        <textarea id="demo-task" placeholder="Navigate to the pricing page and compare plans"></textarea>
+      </div>
+      <button id="generate-btn" onclick="submitDemo()">Generate Demo</button>
+    </div>
+
+    <!-- Progress -->
+    <div id="progress-section" class="section hidden">
+      <div class="status-bar">
+        <div class="spinner" id="spinner"></div>
+        <span class="status-text" id="status-text">Starting...</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <h2>Action Plan</h2>
+      <ul class="step-list" id="step-list"></ul>
+    </div>
+
+    <!-- Result -->
+    <div id="result-section" class="section hidden">
+      <h2>Your Demo</h2>
+      <video id="video-player" controls></video>
+      <div class="btn-row">
+        <a id="download-link" href="#" download><button class="btn-secondary">Download Video</button></a>
+        <button onclick="resetForm()">Generate Another</button>
+      </div>
+    </div>
+
+    <!-- Error -->
+    <div id="error-section" class="error-banner hidden">
+      <strong>Error:</strong> <span id="error-text"></span>
+      <div class="btn-row"><button onclick="resetForm()">Try Again</button></div>
+    </div>
+  </div>
+
+  <script>
+    let currentJobId = null;
+    let pollTimer = null;
+
+    async function submitDemo() {
+      const siteUrl = document.getElementById('site-url').value.trim();
+      const demoTask = document.getElementById('demo-task').value.trim();
+
+      if (!siteUrl || !demoTask) return alert('Please fill in both fields.');
+
+      // Disable form
+      document.getElementById('generate-btn').disabled = true;
+      document.getElementById('site-url').disabled = true;
+      document.getElementById('demo-task').disabled = true;
+
+      // Show progress
+      document.getElementById('progress-section').classList.remove('hidden');
+      document.getElementById('result-section').classList.add('hidden');
+      document.getElementById('error-section').classList.add('hidden');
+      document.getElementById('status-text').textContent = 'Submitting...';
+      document.getElementById('step-list').innerHTML = '';
+      document.getElementById('progress-fill').style.width = '0%';
+
+      try {
+        const res = await fetch('/demos', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ siteUrl, demoTask }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        currentJobId = data.id;
+        document.getElementById('status-text').textContent = 'Generating action plan...';
+
+        // Start polling
+        pollTimer = setInterval(pollJob, 2000);
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+
+    async function pollJob() {
+      if (!currentJobId) return;
+
+      try {
+        const res = await fetch(`/demos/${currentJobId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const job = await res.json();
+
+        // Update status text
+        const statusLabels = {
+          planning: 'Generating action plan...',
+          executing: 'Executing in browser...',
+          encoding: 'Encoding video...',
+          done: 'Done!',
+          failed: 'Failed',
+        };
+        document.getElementById('status-text').textContent = statusLabels[job.status] || job.status;
+
+        // Render plan steps
+        if (job.plan && job.plan.length > 0) {
+          renderSteps(job.plan, job.progress);
+        }
+
+        // Update progress bar
+        if (job.progress && job.plan) {
+          const pct = Math.round(((job.progress.currentStep + 1) / job.plan.length) * 100);
+          document.getElementById('progress-fill').style.width = pct + '%';
+        } else if (job.status === 'planning') {
+          document.getElementById('progress-fill').style.width = '5%';
+        } else if (job.status === 'encoding') {
+          document.getElementById('progress-fill').style.width = '90%';
+        }
+
+        // Done
+        if (job.status === 'done') {
+          clearInterval(pollTimer);
+          document.getElementById('progress-fill').style.width = '100%';
+          document.getElementById('spinner').classList.add('hidden');
+          showResult(job);
+        }
+
+        // Failed
+        if (job.status === 'failed') {
+          clearInterval(pollTimer);
+          showError(job.error || 'Unknown error');
+        }
+      } catch (err) {
+        // Network error — keep polling
+      }
+    }
+
+    function renderSteps(plan, progress) {
+      const currentIdx = progress ? progress.currentStep : -1;
+      const list = document.getElementById('step-list');
+      list.innerHTML = plan.map((step, i) => {
+        let cls = 'pending';
+        let icon = '○';
+        if (i < currentIdx) { cls = 'done'; icon = '✓'; }
+        else if (i === currentIdx) { cls = 'current'; icon = '▸'; }
+
+        let label = '';
+        if (step.action === 'goto') label = `Navigate to ${step.url}`;
+        else if (step.action === 'act') label = step.instruction;
+        else if (step.action === 'scroll') label = `Scroll ${step.direction} ${step.pixels || 400}px`;
+        else if (step.action === 'wait') label = `Wait ${step.seconds}s`;
+
+        return `<li class="${cls}"><span class="step-icon">${icon}</span>${i + 1}. ${label}</li>`;
+      }).join('');
+    }
+
+    function showResult(job) {
+      const videoUrl = `/demos/${job.id}/video`;
+      document.getElementById('video-player').src = videoUrl;
+      document.getElementById('download-link').href = videoUrl;
+      document.getElementById('result-section').classList.remove('hidden');
+    }
+
+    function showError(msg) {
+      clearInterval(pollTimer);
+      document.getElementById('error-text').textContent = msg;
+      document.getElementById('error-section').classList.remove('hidden');
+      document.getElementById('spinner').classList.add('hidden');
+      document.getElementById('generate-btn').disabled = false;
+      document.getElementById('site-url').disabled = false;
+      document.getElementById('demo-task').disabled = false;
+    }
+
+    function resetForm() {
+      currentJobId = null;
+      clearInterval(pollTimer);
+      document.getElementById('progress-section').classList.add('hidden');
+      document.getElementById('result-section').classList.add('hidden');
+      document.getElementById('error-section').classList.add('hidden');
+      document.getElementById('spinner').classList.remove('hidden');
+      document.getElementById('generate-btn').disabled = false;
+      document.getElementById('site-url').disabled = false;
+      document.getElementById('demo-task').disabled = false;
+    }
+  </script>
+</body>
+</html>
