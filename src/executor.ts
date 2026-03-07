@@ -11,7 +11,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export interface ExecutorOptions {
   outputDir?: string;
-  onProgress?: (currentStep: number, totalSteps: number, label: string) => void;
+  onProgress?: (currentStep: number, totalSteps: number, label: string, done?: boolean) => void;
 }
 
 export async function executeActionPlan(
@@ -58,7 +58,7 @@ export async function executeActionPlan(
     while (capturing) {
       const t0 = Date.now();
       try {
-        const buf = await page.screenshot({ type: "jpeg", quality: 75 });
+        const buf = await page.screenshot({ type: "jpeg", quality: 50 });
         const f = path.join(
           FRAMES_DIR,
           `frame_${String(frameCount).padStart(5, "0")}.jpg`
@@ -120,6 +120,7 @@ export async function executeActionPlan(
       }
 
       actionLog.push({ step: i, action: step, timestamp_ms, success: true });
+      options?.onProgress?.(i, steps.length, stepLabel, true);
       console.log(`[executor]   ✓ Success`);
     } catch (err: any) {
       const errorMsg = err.message || String(err);
@@ -130,6 +131,7 @@ export async function executeActionPlan(
         success: false,
         error: errorMsg,
       });
+      options?.onProgress?.(i, steps.length, stepLabel, true);
       console.log(`[executor]   ✗ Failed: ${errorMsg}`);
     }
   }
@@ -155,13 +157,14 @@ export async function executeActionPlan(
     console.log(
       `[executor] Capture stats: ${frameCount} frames in ${captureDuration.toFixed(1)}s = ${actualFps} raw fps`
     );
+    const targetFps = actualFps < 5 ? 30 : 60;
     console.log(
-      "[executor] Encoding video (interpolating to 60fps)..."
+      `[executor] Encoding video (interpolating to ${targetFps}fps)...`
     );
     try {
       execSync(
         `ffmpeg -y -framerate ${actualFps} -i "${FRAMES_DIR}/frame_%05d.jpg" ` +
-          `-vf "minterpolate=fps=60:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" ` +
+          `-vf "minterpolate=fps=${targetFps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" ` +
           `-c:v libx264 -pix_fmt yuv420p -b:v 6M "${videoPath}"`,
         { stdio: "pipe", timeout: 300000 }
       );
@@ -177,7 +180,7 @@ export async function executeActionPlan(
       try {
         execSync(
           `ffmpeg -y -framerate ${actualFps} -i "${FRAMES_DIR}/frame_%05d.jpg" ` +
-            `-vf "fps=60" ` +
+            `-vf "fps=${targetFps}" ` +
             `-c:v libx264 -pix_fmt yuv420p -b:v 6M "${videoPath}"`,
           { stdio: "pipe", timeout: 120000 }
         );
