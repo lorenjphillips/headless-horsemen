@@ -43,7 +43,34 @@ Navigate to a website, click a button using AI, record the session as .webm vide
 - Browserbase session replay: viewable at `https://www.browserbase.com/sessions/{sessionId}`
 
 ### Decisions
-- Using `google/gemini-2.0-flash` as the AI model for Stagehand act()
+- Using `google/gemini-2.0-flash` as the AI model for Stagehand act() → **UPGRADE TO `google/gemini-2.5-flash`**
 - Using periodic screenshots + ffmpeg for video recording
 - Switched target from NotebookLM (requires auth) to GitHub (public)
 - Screenshot interval: 200ms (~5fps) — good balance of quality vs overhead
+
+---
+
+## NEXT STEPS (assigned by orchestrator)
+
+### Immediate: Upgrade Gemini model
+- [ ] Change `google/gemini-2.0-flash` → `google/gemini-2.5-flash` in `scripts/test-stagehand.ts`
+- [ ] Test that Stagehand still works with the new model
+
+### Step 2: Wire up Gemini planner → Stagehand executor
+- [ ] Create `src/planner.ts` — takes user prompt, calls Gemini 2.5 Pro (`gemini-2.5-pro` via `@google/generative-ai`), returns JSON action plan
+- [ ] Action schema should map to Stagehand: `{ action: "goto"|"act"|"wait"|"extract", url?: string, instruction?: string, seconds?: number }`
+- [ ] Use Gemini's JSON mode / structured output for reliable responses
+- [ ] Create `src/executor.ts` — takes action plan JSON, runs each step via Stagehand `act()` / `page.goto()` / `sleep()`
+- [ ] Integrate screenshot capture from test-stagehand.ts into executor
+- [ ] Create `scripts/test-pipeline.ts` — end-to-end: prompt → plan → execute → video
+- [ ] Test with: "Go to https://github.com/browserbase/stagehand and star the repository"
+
+### Step 3: Caption generation
+- [ ] After execution, send screenshots + action context to Gemini 2.5 Pro
+- [ ] Generate timed captions: `{ timestamp_ms: number, text: string }[]`
+- [ ] Burn captions into video via FFmpeg drawtext or ASS subtitles
+
+### Notes
+- `@google/generative-ai` npm package is for direct Gemini API calls (planner, captions)
+- Stagehand has its own model config (uses `google/` prefix format)
+- Research agent is separately investigating Gemini structured output patterns — check RESEARCH.md when available

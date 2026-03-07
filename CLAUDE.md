@@ -6,9 +6,10 @@
 
 | Tool | Role |
 |------|------|
-| **Gemini** | LLM — breaks prompt into browser action steps, generates captions |
+| **Gemini 2.5 Flash** | Stagehand browser actions (fast, cheap) — model ID: `google/gemini-2.5-flash` |
+| **Gemini 2.5 Pro** | Planner + caption generation (smart reasoning) — model ID: `gemini-2.5-pro` |
 | **Stagehand** (Browserbase) | Browser automation — AI-native web agent that executes actions |
-| **Playwright** | Records the browser session as video |
+| **Playwright** | NOT used for video — Stagehand v3 uses CDP, not Playwright |
 | **FFmpeg** | Video post-processing — trim, captions, transitions, combine audio |
 | **Lyria** (Google DeepMind) | Generates background music/beat for the demo |
 | **ChromaDB** | *Stretch goal* — vector store for reusable demo step templates |
@@ -59,10 +60,13 @@ User Prompt
 
 ## Implementation Steps
 
-### Step 1: Stagehand + Playwright recording
+### Step 1: Stagehand + screen recording ✅ DONE
 - Set up Stagehand with Browserbase cloud browser
-- Configure Playwright to record video of the browser session
-- Test: hardcoded script navigates a site and produces a raw `.webm`
+- Stagehand v3 uses its own CDP layer, NOT Playwright — `recordVideo` is unavailable
+- Browserbase `recordSession: true` captures rrweb data (DOM), not video
+- **Working approach**: periodic `page.screenshot()` at ~5fps → ffmpeg stitches into `.webm`
+- NotebookLM requires Google auth — switched to GitHub (public) for initial test
+- Tested: navigates GitHub repo, clicks elements via `act()`, outputs `output/demo.webm`
 
 ### Step 2: Gemini prompt → action plan
 - Send user prompt to Gemini, get back structured action steps (JSON)
@@ -122,6 +126,28 @@ GEMINI_API_KEY=
 BROWSERBASE_API_KEY=
 BROWSERBASE_PROJECT_ID=
 ```
+
+## Gemini Models (as of March 2026)
+
+Use the **latest stable** models. Stagehand model names use `google/` prefix.
+
+| Use Case | Model ID | Notes |
+|----------|----------|-------|
+| Stagehand `act()` / `observe()` | `google/gemini-2.5-flash` | Fast, cheap, good for browser actions |
+| Planner (prompt → action steps) | `gemini-2.5-pro` | Smart reasoning for complex plans |
+| Caption generation | `gemini-2.5-pro` | Multimodal — can analyze screenshots |
+| Bleeding edge (if needed) | `gemini-3.1-pro-preview` | Preview only, deprecating March 9 2026 |
+
+Available Gemini 3 models (all preview):
+- `gemini-3.1-pro-preview`
+- `gemini-3.1-flash-lite-preview`
+- `gemini-3-flash-preview`
+
+## Key Learnings
+- **Stagehand v3** uses its own CDP layer ("understudy"), NOT Playwright
+- **Video recording**: `recordVideo` and CDP `Page.startScreencast` don't work on Browserbase — use periodic screenshots + ffmpeg
+- **Stagehand model format**: must use `google/gemini-X` prefix, not bare `gemini-X`
+- **Auth walls**: sites requiring login (NotebookLM, etc.) need cookie injection or a public target
 
 ## Key Decisions
 - **TypeScript** — Stagehand is TS-native, keeps everything in one runtime
