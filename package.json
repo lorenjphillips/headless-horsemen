@@ -20,6 +20,7 @@
   "homepage": "https://github.com/YongeBai/gemini-hackathon#readme",
   "dependencies": {
     "@browserbasehq/stagehand": "^3.1.0",
+    "@google/genai": "^1.44.0",
     "dotenv": "^17.3.1",
     "webm-writer": "^1.0.0",
     "whammy": "^0.0.1"
