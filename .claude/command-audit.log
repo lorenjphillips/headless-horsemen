@@ -1,0 +1,60 @@
+ls -la /Users/lorenphillips/Personal/gemini-hackathon/
+ls -la /Users/lorenphillips/Personal/gemini-hackathon/
+cursor /Users/lorenphillips/Personal/gemini-hackathon/CLAUDE.md
+git status
+git log --oneline -5
+git add CLAUDE.md && git commit -m "$(cat <<'EOF'
+Add CLAUDE.md with hackathon plan and pipeline architecture
+
+DemoForge: prompt → AI agent navigates website → records browser actions → outputs polished demo video with music. Stack: Gemini, Stagehand/Browserbase, Playwright, FFmpeg, Lyria, ChromaDB (stretch).
+EOF
+)"
+git push
+git add CLAUDE.md && git commit -m "$(cat <<'EOF'
+Move Lyria music generation to stretch goal (no public API)
+
+Reorder pipeline: FFmpeg composition is now step 4, ChromaDB step 5,
+Lyria step 6 with fallback to royalty-free tracks.
+EOF
+)" && git push
+npm init -y 2>&1
+npm install @browserbasehq/stagehand dotenv 2>&1
+npm install -D typescript tsx @types/node 2>&1 && mkdir -p output scripts
+ls /Users/lorenphillips/Personal/gemini-hackathon/node_modules/@browserbasehq/stagehand/dist/
+npm ls @browserbasehq/sdk 2>&1 || echo "SDK not installed"
+ls /Users/lorenphillips/Personal/gemini-hackathon/node_modules/@browserbasehq/stagehand/dist/esm/lib/v3/understudy/
+npm install webm-writer 2>&1 || echo "webm-writer not found, trying alternatives" && npm install whammy 2>&1 || echo "whammy not found"
+which ffmpeg 2>&1 && ffmpeg -version 2>&1 | head -1 || echo "ffmpeg not installed"
+npx tsx scripts/test-stagehand.ts 2>&1
+file /Users/lorenphillips/Personal/gemini-hackathon/output/frames/frame_00000.jpg /Users/lorenphillips/Personal/gemini-hackathon/output/before-click.png /Users/lorenphillips/Personal/gemini-hackathon/output/after-click.png 2>&1
+npx tsx scripts/test-stagehand.ts 2>&1
+git status
+git log --oneline -5
+git diff --staged
+git add .gitignore package.json package-lock.json
+git commit -m "$(cat <<'EOF'
+Add project setup: package.json, lockfile, and .gitignore
+
+Initialize npm project with Stagehand, dotenv, TypeScript, and tsx.
+Gitignore covers .env, node_modules, and output directory.
+EOF
+)"
+git add scripts/test-stagehand.ts
+git commit -m "$(cat <<'EOF'
+Add Stagehand browser automation script
+
+Connects to Browserbase cloud browser, navigates to a page,
+uses Stagehand act() with Gemini for AI-powered clicks,
+captures screenshots at 5fps, and stitches into demo.webm via ffmpeg.
+EOF
+)"
+git add PROGRESS.md
+git commit -m "$(cat <<'EOF'
+Add PROGRESS.md documenting Step 1 completion
+
+Records key findings: Stagehand v3 uses CDP not Playwright,
+video recording via periodic screenshots + ffmpeg,
+NotebookLM requires auth so switched to GitHub as target.
+EOF
+)"
+ls -la .claude/
