@@ -179,5 +179,5 @@ async function runPipeline(job: DemoJob) {
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 app.listen(PORT, () => {
-  console.log(`[server] DemoForge running at http://localhost:${PORT}`);
+  console.log(`[server] Headless Horsemen running at http://localhost:${PORT}`);
 });

@@ -1,4 +1,4 @@
-# DemoForge — Progress Tracker
+# Headless Horsemen — Progress Tracker
 
 ## Step 1: Stagehand + screen recording ✅ COMPLETE
 

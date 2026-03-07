@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: DemoForge API
+  title: Headless Horsemen API
   description: >
     Generate polished demo videos from a website URL and task description.
     An AI agent navigates the site, records browser actions, and outputs video.
@@ -9,8 +9,8 @@ info:
 servers:
   - url: http://localhost:3000
     description: Local development
-  - url: https://demoforge.up.railway.app
-    description: Railway deployment
+  - url: https://headlesshorsemen.lol
+    description: Production
 
 paths:
   /demos:

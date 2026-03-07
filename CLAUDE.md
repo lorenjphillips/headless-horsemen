@@ -1,4 +1,4 @@
-# DemoForge
+# Headless Horsemen
 
 **Prompt → AI agent navigates website → records browser actions → outputs polished demo video with music**
 

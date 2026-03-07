@@ -1,4 +1,4 @@
-# DemoForge -- API, UI, and Deployment Design
+# Headless Horsemen -- API, UI, and Deployment Design
 
 ## Table of Contents
 1. [API Design](#1-api-design)
@@ -157,7 +157,7 @@ Express server serves it as a static file. The entire UI is one file, under 200 
 ```
 +------------------------------------------------------------------+
 |                                                                  |
-|   DemoForge                                        [hackathon]   |
+|   Headless Horsemen                                        [hackathon]   |
 |                                                                  |
 +------------------------------------------------------------------+
 |                                                                  |
@@ -324,7 +324,7 @@ That is it. No Redis, no SQS, no S3, no database.
 ```yaml
 openapi: 3.0.3
 info:
-  title: DemoForge API
+  title: Headless Horsemen API
   description: >
     Generate polished demo videos from a website URL and task description.
     An AI agent navigates the site, records browser actions, and outputs video.
@@ -333,7 +333,7 @@ info:
 servers:
   - url: http://localhost:3000
     description: Local development
-  - url: https://demoforge.up.railway.app
+  - url: https://headlesshorsemen.lol
     description: Railway deployment
 
 paths:

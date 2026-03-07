@@ -263,3 +263,21 @@ git add design/api-design.md && git commit -m "$(cat <<'EOF'
 Add API design doc with endpoints, OpenAPI spec, and deployment plan
 EOF
 )"
+git add .claude/command-audit.log && git commit -m "Update command audit log"
+git push origin master
+ls /Users/lorenphillips/Personal/gemini-hackathon/design/ 2>/dev/null || echo "design directory does not exist"
+ffmpeg -version 2>&1 | head -5
+ffmpeg -filters 2>&1 | grep -E "drawtext|zoompan|fade|ass|subtitles" | head -10
+ffmpeg -filters 2>&1 | grep -E "drawtext|zoompan|fade |subtitles|overlay|ass |color " | head -10
+ffmpeg -filters 2>/dev/null | grep -iE "drawtext|zoompan|^.*fade.*V|subtitles|overlay|color " 
+git add design/openapi.yaml src/server.ts && git commit -m "$(cat <<'EOF'
+Add standalone OpenAPI 3.0 spec and serve at /openapi.yaml
+
+Extracted from design doc, updated to match implementation:
+- video/mp4 instead of video/webm
+- encoding status instead of composing
+- 409 response for concurrent job rejection
+EOF
+)"
+git push origin master
+git log --oneline -10

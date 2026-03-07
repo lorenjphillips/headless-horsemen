@@ -1,4 +1,4 @@
-# DemoForge Research Log
+# Headless Horsemen Research Log
 
 ## Gemini API — Structured Output & JSON Mode
 
