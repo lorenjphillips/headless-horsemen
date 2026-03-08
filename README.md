@@ -2,10 +2,7 @@
   <img src="public/logo.png" alt="Headless Horsemen" width="120" />
 </p>
 
-<h1 align="center">Headless Horsemen</h1>
-<p align="center">
-  <a href="https://headlesshorsemen.lol"><strong>Try it live →</strong></a>
-</p>
+<h1 align="center">Headless Horsemen &nbsp;|&nbsp; <a href="https://headlesshorsemen.lol">Try it live →</a></h1>
 
 <p align="center">
   <strong>Give it a URL and a task. Get back a polished demo video.</strong>
