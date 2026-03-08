@@ -12,32 +12,32 @@
   <style>
     :root {
       --bg-base: #060b14;
-      --bg-surface: #0c1220;
-      --bg-input: #0f1628;
-      --border-base: #1a2540;
-      --border-subtle: #243354;
+      --bg-surface: #0d1424;
+      --bg-input: #111a2e;
+      --border-base: #1e2d4a;
+      --border-subtle: #2a3d5e;
       --text-primary: #f0f4ff;
-      --text-body: #94a3b8;
-      --text-muted: #64748b;
-      --text-dim: #475569;
-      --accent: #60a5fa;
-      --accent-hover: #3b82f6;
+      --text-body: #b0bdd0;
+      --text-muted: #7e8fa6;
+      --text-dim: #5a6b82;
+      --accent: #6bb5ff;
+      --accent-hover: #4a9def;
       --active-pill-bg: #1e3a5f;
       --active-pill-text: #bfdbfe;
-      --glow-sm: 0 0 8px rgba(96,165,250,0.08);
-      --glow-md: 0 0 14px rgba(96,165,250,0.12);
-      --glow-lg: 0 0 20px rgba(96,165,250,0.15);
+      --glow-sm: 0 0 8px rgba(107,181,255,0.08);
+      --glow-md: 0 0 14px rgba(107,181,255,0.12);
+      --glow-lg: 0 0 20px rgba(107,181,255,0.15);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'JetBrains Mono', monospace; background: var(--bg-base); color: var(--text-body); min-height: 100vh; font-size: 12.5px; }
-    body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(96,165,250,0.015) 2px, rgba(96,165,250,0.015) 4px); }
+    body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(107,181,255,0.015) 2px, rgba(107,181,255,0.015) 4px); }
     body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9998; background: radial-gradient(ellipse at center, transparent 50%, rgba(6,11,20,0.4) 100%); }
     .container { max-width: 640px; margin: 0 auto; padding: 2rem 1rem; }
     header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-base); }
     .header-left { display: flex; align-items: center; gap: 0.6rem; }
-    .header-logo { width: 34px; height: 34px; filter: drop-shadow(0 0 6px rgba(96,165,250,0.3)); }
-    header h1 { font-size: 1.2rem; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.02em; text-shadow: 0 0 20px rgba(96,165,250,0.15); }
+    .header-logo { width: 34px; height: 34px; filter: drop-shadow(0 0 6px rgba(107,181,255,0.3)); }
+    header h1 { font-size: 1.2rem; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.02em; text-shadow: 0 0 20px rgba(107,181,255,0.15); }
     header span { font-size: 0.65rem; color: var(--text-dim); background: var(--bg-surface); padding: 0.25rem 0.5rem; border-radius: 2px; border: 1px solid var(--border-subtle); }
 
     .form-group { margin-bottom: 0.75rem; }
@@ -60,18 +60,18 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .progress-bar { width: 100%; height: 4px; background: var(--border-base); border-radius: 2px; overflow: hidden; margin-bottom: 1rem; }
-    .progress-fill { height: 100%; background: var(--accent); transition: width 0.3s ease; border-radius: 2px; box-shadow: 0 0 8px rgba(96,165,250,0.4); }
+    .progress-fill { height: 100%; background: var(--accent); transition: width 0.3s ease; border-radius: 2px; box-shadow: 0 0 8px rgba(107,181,255,0.4); }
 
     .step-list { list-style: none; }
     .step-list li { padding: 0.25rem 0; font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: flex-start; gap: 0.5rem; }
     .step-list li.done { color: #4ade80; }
-    .step-list li.current { color: var(--accent); font-weight: 600; text-shadow: 0 0 10px rgba(96,165,250,0.2); }
+    .step-list li.current { color: var(--accent); font-weight: 600; text-shadow: 0 0 10px rgba(107,181,255,0.2); }
     .step-list li.pending { color: var(--text-dim); }
     .step-icon { flex-shrink: 0; width: 1.1em; text-align: center; }
 
     video { width: 100%; border-radius: 3px; background: #000; margin-bottom: 0.75rem; border: 1px solid var(--border-base); box-shadow: var(--glow-md); }
 
-    .memory-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.6rem; background: rgba(96,165,250,0.06); border: 1px solid rgba(96,165,250,0.15); border-radius: 3px; margin-bottom: 0.5rem; font-size: 0.7rem; color: var(--accent); }
+    .memory-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.6rem; background: rgba(107,181,255,0.06); border: 1px solid rgba(107,181,255,0.15); border-radius: 3px; margin-bottom: 0.5rem; font-size: 0.7rem; color: var(--accent); }
     .memory-badge a { color: var(--accent); text-decoration: none; font-weight: 600; }
     .memory-badge a:hover { text-decoration: underline; }
 
