@@ -178,6 +178,9 @@ async function runPipeline(job: DemoJob) {
     job.status = "encoding";
     job.actionLog = actionLog;
     job.videoPath = path.resolve(videoPath);
+    if (!fs.existsSync(job.videoPath)) {
+      throw new Error("Video encoding failed — file was not created");
+    }
     job.status = "done";
     job.completedAt = new Date().toISOString();
     console.log(`[server] Job ${job.id}: done! Video: ${videoPath}`);

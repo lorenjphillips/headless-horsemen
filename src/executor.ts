@@ -224,6 +224,7 @@ export async function executeActionPlan(
           "[executor] ffmpeg error:",
           err2.stderr?.toString().slice(-500) || err2.message
         );
+        throw new Error("Video encoding failed: ffmpeg not available");
       }
     }
   }
