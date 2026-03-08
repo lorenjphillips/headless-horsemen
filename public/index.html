@@ -102,11 +102,11 @@
     .badge-link { font-size: 0.75rem; color: var(--text-dim); background: var(--bg-surface); padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid var(--border-subtle); text-decoration: none; transition: border-color 0.15s, color 0.15s; }
     .badge-link:hover { border-color: var(--accent); color: var(--text-body); }
 
-    .powered-by { display: flex; align-items: center; justify-content: center; gap: 1.25rem; padding: 0.6rem 0; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-base); }
-    .powered-by span { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
-    .powered-by a { display: flex; align-items: center; opacity: 0.45; transition: opacity 0.2s; }
-    .powered-by a:hover { opacity: 0.85; }
-    .powered-by img { height: 18px; width: auto; filter: grayscale(1) brightness(1.8); transition: filter 0.2s; }
+    .powered-by { position: fixed; top: 1rem; right: 1rem; display: flex; align-items: center; gap: 0.75rem; z-index: 100; }
+    .powered-by span { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+    .powered-by a { display: flex; align-items: center; opacity: 0.5; transition: opacity 0.2s; }
+    .powered-by a:hover { opacity: 1; }
+    .powered-by img { height: 28px; width: 28px; border-radius: 6px; object-fit: cover; filter: grayscale(1) brightness(1.6); transition: filter 0.2s; }
     .powered-by a:hover img { filter: grayscale(0) brightness(1); }
 
     footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border-base); text-align: center; font-size: 0.75rem; color: var(--text-dim); }
@@ -132,9 +132,9 @@
 
     <div class="powered-by">
       <span>Powered by</span>
-      <a href="https://ai.google.dev/" target="_blank" rel="noopener"><img src="/sponsors/gemini.png" alt="Google Gemini" /></a>
-      <a href="https://www.browserbase.com/" target="_blank" rel="noopener"><img src="/sponsors/browserbase.png" alt="Browserbase" /></a>
-      <a href="https://www.trychroma.com/" target="_blank" rel="noopener"><img src="/sponsors/chroma.svg" alt="Chroma" /></a>
+      <a href="https://ai.google.dev/" target="_blank" rel="noopener"><img src="/sponsors/gemini-square.png" alt="Google Gemini" /></a>
+      <a href="https://www.browserbase.com/" target="_blank" rel="noopener"><img src="/sponsors/browserbase-square.jpg" alt="Browserbase" /></a>
+      <a href="https://www.trychroma.com/" target="_blank" rel="noopener"><img src="/sponsors/chroma-square.png" alt="Chroma" /></a>
     </div>
 
     <!-- Input form -->
