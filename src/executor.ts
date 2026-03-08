@@ -307,18 +307,56 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\
     }
   }
 
-  // Mix in background music (looped, faded) if requested
+  // Mix in background music (crossfade-looped, low volume, faded out) if requested
   if (musicTrack && fs.existsSync(musicTrack) && fs.existsSync(videoPath)) {
     const withMusicPath = path.join(OUTPUT_DIR, "demo_music.mp4");
-    console.log("[executor] Mixing background music (looped)...");
+    console.log("[executor] Mixing background music (crossfade-looped)...");
     try {
+      // Get video duration for proper fade-out timing
+      const durationStr = execSync(
+        `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`,
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+      ).trim();
+      const videoDurationSec = Math.floor(parseFloat(durationStr) || 90);
+      const fadeOutStart = Math.max(0, videoDurationSec - 4);
+
+      // Get music clip duration for crossfade math
+      const clipDurStr = execSync(
+        `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${musicTrack}"`,
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+      ).trim();
+      const clipDur = Math.floor(parseFloat(clipDurStr) || 30);
+      const xfade = 3; // crossfade duration in seconds
+      const loopOffset = clipDur - xfade;
+
+      // Build crossfade-looped background track: 3 copies blended at seams
+      const loopFilterParts = [
+        `[0:a]afade=t=out:st=${loopOffset}:d=${xfade}[a0]`,
+        `[1:a]afade=t=in:st=0:d=${xfade},afade=t=out:st=${loopOffset}:d=${xfade},adelay=${loopOffset * 1000}|${loopOffset * 1000}[a1]`,
+        `[2:a]afade=t=in:st=0:d=${xfade},adelay=${loopOffset * 2 * 1000}|${loopOffset * 2 * 1000}[a2]`,
+        `[a0][a1][a2]amix=inputs=3:duration=longest:normalize=0,` +
+          `atrim=0:${videoDurationSec + 1},` +
+          `afade=t=in:st=0:d=2,afade=t=out:st=${fadeOutStart}:d=3.5,` +
+          `volume=0.12[bgloop]`,
+      ].join(";");
+
+      // First pass: create the looped background track
+      const bgTrackPath = path.join(OUTPUT_DIR, "bg_loop.wav");
       execSync(
-        `ffmpeg -y -i "${videoPath}" -stream_loop -1 -i "${musicTrack}" ` +
-          `-filter_complex "[1:a]volume=0.3,afade=t=out:st=0:d=3[music];[music]apad[m];[m]atrim=0:duration=999[trimmed]" ` +
-          `-map 0:v -map "[trimmed]" -c:v copy -c:a aac -b:a 128k -shortest "${withMusicPath}"`,
+        `ffmpeg -y -i "${musicTrack}" -i "${musicTrack}" -i "${musicTrack}" ` +
+          `-filter_complex "${loopFilterParts}" -map "[bgloop]" "${bgTrackPath}"`,
         { stdio: "pipe", timeout: 120000 }
       );
-      // Replace original with music version
+
+      // Second pass: mix background track under the video
+      execSync(
+        `ffmpeg -y -i "${videoPath}" -i "${bgTrackPath}" ` +
+          `-filter_complex "[0:a][1:a]amix=inputs=2:duration=first:normalize=0,afade=t=out:st=${fadeOutStart}:d=3.5[aout]" ` +
+          `-map 0:v:0 -map "[aout]" -c:v copy -c:a aac -b:a 192k -movflags +faststart "${withMusicPath}"`,
+        { stdio: "pipe", timeout: 120000 }
+      );
+
+      fs.unlinkSync(bgTrackPath);
       fs.renameSync(withMusicPath, videoPath);
       console.log("[executor] Background music mixed successfully.");
     } catch (err: any) {
