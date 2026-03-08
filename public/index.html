@@ -4,82 +4,139 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Headless Horsemen</title>
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
+    :root {
+      --bg-base: #060b14;
+      --bg-surface: #0d1424;
+      --bg-input: #111a2e;
+      --border-base: #1e2d4a;
+      --border-subtle: #2a3d5e;
+      --text-primary: #f0f4ff;
+      --text-body: #b0bdd0;
+      --text-muted: #7e8fa6;
+      --text-dim: #5a6b82;
+      --accent: #6bb5ff;
+      --accent-hover: #4a9def;
+      --active-pill-bg: #1e3a5f;
+      --active-pill-text: #bfdbfe;
+      --glow-sm: 0 0 8px rgba(107,181,255,0.08);
+      --glow-md: 0 0 14px rgba(107,181,255,0.12);
+      --glow-lg: 0 0 20px rgba(107,181,255,0.15);
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; }
+    body { font-family: 'JetBrains Mono', monospace; background: var(--bg-base); color: var(--text-body); min-height: 100vh; font-size: 12.5px; }
+    body::after { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; background: repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, rgba(107,181,255,0.015) 2px, rgba(107,181,255,0.015) 4px); }
+    body::before { content: ''; position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9998; background: radial-gradient(ellipse at center, transparent 50%, rgba(6,11,20,0.4) 100%); }
     .container { max-width: 640px; margin: 0 auto; padding: 2rem 1rem; }
-    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid #222; }
-    header h1 { font-size: 1.5rem; font-weight: 700; color: #fff; }
-    header span { font-size: 0.75rem; color: #666; background: #1a1a1a; padding: 0.25rem 0.5rem; border-radius: 4px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-base); }
+    .header-left { display: flex; align-items: center; gap: 0.6rem; }
+    .header-logo { width: 34px; height: 34px; filter: drop-shadow(0 0 6px rgba(107,181,255,0.3)); }
+    header h1 { font-size: 1.2rem; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.02em; text-shadow: 0 0 20px rgba(107,181,255,0.15); }
+    header span { font-size: 0.65rem; color: var(--text-dim); background: var(--bg-surface); padding: 0.25rem 0.5rem; border-radius: 2px; border: 1px solid var(--border-subtle); }
 
-    .form-group { margin-bottom: 1rem; }
-    label { display: block; font-size: 0.85rem; color: #999; margin-bottom: 0.35rem; }
-    input, textarea { width: 100%; padding: 0.65rem 0.75rem; background: #141414; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 0.95rem; outline: none; transition: border-color 0.15s; }
-    input:focus, textarea:focus { border-color: #5b6ef5; }
-    textarea { resize: vertical; min-height: 60px; }
+    .form-group { margin-bottom: 0.75rem; }
+    label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    input, textarea { width: 100%; padding: 0.5rem 0.6rem; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 3px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+    input:focus, textarea:focus { border-color: var(--accent); box-shadow: var(--glow-md); }
+    input:disabled, textarea:disabled { background: var(--bg-surface); color: var(--text-dim); border-color: var(--border-base); -webkit-text-fill-color: var(--text-dim); opacity: 1; }
+    textarea { resize: vertical; min-height: 50px; }
 
-    button { padding: 0.7rem 1.5rem; background: #5b6ef5; color: #fff; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
-    button:hover { background: #4a5ce3; }
-    button:disabled { background: #333; color: #666; cursor: not-allowed; }
+    button { padding: 0.5rem 1.2rem; background: var(--accent); color: var(--bg-base); border: none; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: background 0.15s, box-shadow 0.2s, transform 0.15s; }
+    button:hover { background: var(--accent-hover); box-shadow: var(--glow-lg); transform: translateY(-1px); }
+    button:disabled { background: var(--border-base); color: var(--text-dim); cursor: not-allowed; box-shadow: none; transform: none; }
 
-    .section { margin-top: 1.5rem; padding: 1rem; background: #111; border: 1px solid #222; border-radius: 8px; }
-    .section h2 { font-size: 1rem; margin-bottom: 0.75rem; color: #ccc; }
+    .section { margin-top: 1.25rem; padding: 0.85rem; background: var(--bg-surface); border: 1px solid var(--border-base); border-radius: 4px; box-shadow: var(--glow-sm); }
+    .section h2 { font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--text-body); text-transform: uppercase; letter-spacing: 0.06em; }
 
     .status-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
-    .status-text { font-size: 0.9rem; }
-    .spinner { width: 18px; height: 18px; border: 2px solid #333; border-top-color: #5b6ef5; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    .status-text { font-size: 0.78rem; }
+    .spinner { width: 14px; height: 14px; border: 2px solid var(--border-base); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .progress-bar { width: 100%; height: 6px; background: #222; border-radius: 3px; overflow: hidden; margin-bottom: 1rem; }
-    .progress-fill { height: 100%; background: #5b6ef5; transition: width 0.3s ease; border-radius: 3px; }
+    .progress-bar { width: 100%; height: 4px; background: var(--border-base); border-radius: 2px; overflow: hidden; margin-bottom: 1rem; }
+    .progress-fill { height: 100%; background: var(--accent); transition: width 0.3s ease; border-radius: 2px; box-shadow: 0 0 8px rgba(107,181,255,0.4); }
 
     .step-list { list-style: none; }
-    .step-list li { padding: 0.35rem 0; font-size: 0.85rem; color: #888; display: flex; align-items: flex-start; gap: 0.5rem; }
+    .step-list li { padding: 0.25rem 0; font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: flex-start; gap: 0.5rem; }
     .step-list li.done { color: #4ade80; }
-    .step-list li.current { color: #5b6ef5; font-weight: 600; }
-    .step-list li.pending { color: #555; }
+    .step-list li.current { color: var(--accent); font-weight: 600; text-shadow: 0 0 10px rgba(107,181,255,0.2); }
+    .step-list li.pending { color: var(--text-dim); }
     .step-icon { flex-shrink: 0; width: 1.1em; text-align: center; }
 
-    video { width: 100%; border-radius: 6px; background: #000; margin-bottom: 0.75rem; }
+    video { width: 100%; border-radius: 3px; background: #000; margin-bottom: 0.75rem; border: 1px solid var(--border-base); box-shadow: var(--glow-md); }
 
-    .error-banner { background: #2a1010; border: 1px solid #5c2020; color: #f87171; padding: 0.75rem 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.9rem; }
+    .memory-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.6rem; background: rgba(107,181,255,0.06); border: 1px solid rgba(107,181,255,0.15); border-radius: 3px; margin-bottom: 0.5rem; font-size: 0.7rem; color: var(--accent); }
+    .memory-badge a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .memory-badge a:hover { text-decoration: underline; }
 
-    .btn-row { display: flex; gap: 0.75rem; margin-top: 0.75rem; }
-    .btn-secondary { background: #222; color: #ccc; }
-    .btn-secondary:hover { background: #333; }
+    .error-banner { background: #1a0f1f; border: 1px solid #5c2040; color: #f87171; padding: 0.5rem 0.75rem; border-radius: 3px; margin-top: 0.75rem; font-size: 0.78rem; }
+
+    .btn-row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .btn-secondary { background: var(--bg-input); color: var(--text-body); }
+    .btn-secondary:hover { background: var(--border-base); }
 
     .hidden { display: none !important; }
 
-    .options-toggle { background: none; border: 1px solid #333; color: #999; font-size: 0.85rem; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; margin-bottom: 0.75rem; width: 100%; text-align: left; display: flex; justify-content: space-between; align-items: center; }
-    .options-toggle:hover { border-color: #555; color: #ccc; background: #141414; }
-    .options-toggle .arrow { transition: transform 0.2s; }
-    .options-toggle.open .arrow { transform: rotate(90deg); }
-    .options-panel { overflow: hidden; max-height: 0; transition: max-height 0.3s ease; }
-    .options-panel.open { max-height: 500px; }
-    .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 0.5rem 0 0.75rem; }
-    .opt-group label { font-size: 0.8rem; color: #888; margin-bottom: 0.25rem; display: block; }
-    .opt-group select { width: 100%; padding: 0.45rem 0.5rem; background: #141414; border: 1px solid #333; border-radius: 5px; color: #fff; font-size: 0.85rem; outline: none; }
-    .opt-group select:focus { border-color: #5b6ef5; }
-    .opt-group .toggle-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; }
-    .opt-group .toggle-row input[type="checkbox"] { accent-color: #5b6ef5; }
-    .opt-group .toggle-row span { font-size: 0.85rem; color: #666; }
-    .coming-soon { font-size: 0.7rem; color: #555; margin-left: 0.25rem; }
-    .lyria-label { display: flex; align-items: center; gap: 0.35rem; }
-    .lyria-label a { color: #5b6ef5; text-decoration: none; font-size: 0.7rem; }
-    .lyria-label a:hover { text-decoration: underline; }
-    .opt-group select option[title] { font-size: 0.85rem; }
-    .tooltip-wrap { position: relative; display: inline-block; }
-    .tooltip-wrap .tooltip-icon { cursor: help; color: #555; font-size: 0.75rem; margin-left: 0.25rem; }
-    .tooltip-wrap .tooltip-text { visibility: hidden; opacity: 0; position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: #222; color: #ccc; padding: 0.5rem 0.65rem; border-radius: 6px; font-size: 0.75rem; line-height: 1.4; width: 240px; z-index: 10; border: 1px solid #333; transition: opacity 0.15s; pointer-events: none; }
-    .tooltip-wrap:hover .tooltip-text { visibility: visible; opacity: 1; }
+    .options-section { margin-bottom: 0.85rem; }
+    .opt-row { margin-bottom: 0.65rem; }
+    .opt-label { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.35rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .opt-label a { color: var(--accent); text-decoration: none; font-size: 0.6rem; }
+    .opt-label a:hover { text-decoration: underline; }
+
+    .seg-control { display: flex; background: var(--bg-input); border: 1px solid var(--border-base); border-radius: 4px; padding: 3px; gap: 2px; }
+    .seg-btn { flex: 1; padding: 0.3rem 0.4rem; background: transparent; border: none; border-radius: 2px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; font-weight: 500; cursor: pointer; transition: all 0.15s; text-align: center; white-space: nowrap; }
+    .seg-btn:hover { color: var(--text-body); }
+    .seg-btn.active { background: var(--accent); color: var(--bg-base); box-shadow: var(--glow-sm); }
+
+    .music-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .music-pill { padding: 0.25rem 0.55rem; background: var(--bg-input); border: 1px solid var(--border-base); border-radius: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .music-pill:hover { border-color: var(--border-subtle); color: var(--text-body); }
+    .music-pill.active { background: var(--active-pill-bg); border-color: var(--accent); color: var(--active-pill-text); box-shadow: var(--glow-sm); }
+
+    .header-badges { display: flex; gap: 0.5rem; align-items: center; }
+    .badge-link { font-size: 0.65rem; color: var(--text-dim); background: var(--bg-surface); padding: 0.25rem 0.5rem; border-radius: 2px; border: 1px solid var(--border-subtle); text-decoration: none; transition: border-color 0.15s, color 0.15s; }
+    .badge-link:hover { border-color: var(--accent); color: var(--text-body); }
+
+    .powered-by { position: fixed; top: 1rem; right: 1rem; display: flex; align-items: center; gap: 0.75rem; z-index: 100; }
+    .powered-by span { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; }
+    .powered-by a { display: flex; align-items: center; opacity: 0.5; transition: opacity 0.2s; }
+    .powered-by a:hover { opacity: 1; }
+    .powered-by img { height: 28px; width: 28px; border-radius: 6px; object-fit: cover; filter: grayscale(1) brightness(1.6); transition: filter 0.2s; }
+    .powered-by a:hover img { filter: grayscale(0) brightness(1); }
+
+    footer { margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--border-base); text-align: center; font-size: 0.75rem; color: var(--text-dim); }
+    footer a { color: var(--text-body); text-decoration: none; transition: color 0.15s; }
+    footer a:hover { color: var(--accent); }
+    footer span { color: var(--text-dim); }
   </style>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Headless Horsemen</h1>
-      <span>Gemini Hackathon</span>
+      <div class="header-left">
+        <img src="/logo.png" alt="Headless Horsemen" class="header-logo" />
+        <h1>Headless Horsemen</h1>
+      </div>
+      <div class="header-badges">
+        <span>Gemini Hackathon</span>
+        <a href="https://github.com/lorenjphillips/headless-horsemen" target="_blank" rel="noopener" class="badge-link">
+          <span><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:-2px;margin-right:4px"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>GitHub</span>
+        </a>
+      </div>
     </header>
+
+    <div class="powered-by">
+      <span>Powered by</span>
+      <a href="https://ai.google.dev/" target="_blank" rel="noopener"><img src="/sponsors/gemini-square.png" alt="Google Gemini" /></a>
+      <a href="https://www.browserbase.com/" target="_blank" rel="noopener"><img src="/sponsors/browserbase-square.jpg" alt="Browserbase" /></a>
+      <a href="https://www.trychroma.com/" target="_blank" rel="noopener"><img src="/sponsors/chroma-square.png" alt="Chroma" /></a>
+    </div>
 
     <!-- Input form -->
     <div id="form-section">
@@ -91,56 +148,45 @@
         <label for="demo-task">What should the demo show?</label>
         <textarea id="demo-task" placeholder="Navigate to the pricing page and compare plans"></textarea>
       </div>
-      <button class="options-toggle" id="options-toggle" type="button" onclick="toggleOptions()">
-        Options <span class="arrow">▸</span>
-      </button>
-      <div class="options-panel" id="options-panel">
-        <div class="options-grid">
-          <div class="opt-group">
-            <label for="opt-quality">Video Quality</label>
-            <select id="opt-quality">
-              <option value="low">Low (2M / 30fps)</option>
-              <option value="medium" selected>Medium (4M / 30fps)</option>
-              <option value="high">High (6M / 60fps)</option>
-            </select>
+      <div class="options-section">
+        <div class="opt-row">
+          <div class="opt-label">Quality</div>
+          <div class="seg-control" id="opt-quality" data-value="medium">
+            <button class="seg-btn" data-val="low" onclick="setSeg(this)">Low</button>
+            <button class="seg-btn active" data-val="medium" onclick="setSeg(this)">Medium</button>
+            <button class="seg-btn" data-val="high" onclick="setSeg(this)">High</button>
           </div>
-          <div class="opt-group">
-            <label for="opt-speed">Speed</label>
-            <select id="opt-speed">
-              <option value="slow">Slow</option>
-              <option value="normal" selected>Normal</option>
-              <option value="fast">Fast</option>
-            </select>
+        </div>
+        <div class="opt-row">
+          <div class="opt-label">Speed</div>
+          <div class="seg-control" id="opt-speed" data-value="normal">
+            <button class="seg-btn" data-val="slow" onclick="setSeg(this)">Slow</button>
+            <button class="seg-btn active" data-val="normal" onclick="setSeg(this)">Normal</button>
+            <button class="seg-btn" data-val="fast" onclick="setSeg(this)">Fast</button>
           </div>
-          <div class="opt-group">
-            <label>Post-production</label>
-            <div class="toggle-row">
-              <input type="checkbox" id="opt-subtitles" disabled />
-              <span>Subtitles<span class="coming-soon">(coming soon)</span></span>
-            </div>
+        </div>
+        <div class="opt-row">
+          <div class="opt-label">
+            Background Music
+            <a href="https://deepmind.google/models/lyria/" target="_blank" rel="noopener">Lyria 3</a>
           </div>
-          <div class="opt-group" style="grid-column: 1 / -1;">
-            <label class="lyria-label">
-              Lyria 3 Background Music
-              <a href="https://deepmind.google/models/lyria/" target="_blank" rel="noopener">by Google DeepMind</a>
-            </label>
-            <select id="opt-music">
-              <option value="">None</option>
-              <option value="lofi-chill">Lo-fi Chill</option>
-              <option value="upbeat-tech">Upbeat Tech</option>
-              <option value="ambient-focus">Ambient Focus</option>
-              <option value="cinematic-reveal">Cinematic Reveal</option>
-            </select>
-            <div style="margin-top: 0.4rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-              <span class="tooltip-wrap"><span class="tooltip-icon">[Lo-fi Chill]</span><span class="tooltip-text">Soft Rhodes piano, vinyl crackle, boom-bap drums at 75 BPM. Warm and mellow — good for any demo walkthrough.</span></span>
-              <span class="tooltip-wrap"><span class="tooltip-icon">[Upbeat Tech]</span><span class="tooltip-text">Plucky synth arpeggios, four-on-the-floor kick at 120 BPM, shimmering hi-hats. Energetic — great for marketing demos.</span></span>
-              <span class="tooltip-wrap"><span class="tooltip-icon">[Ambient Focus]</span><span class="tooltip-text">Slow-evolving pad textures, soft sub-bass, gentle bell tones. Spacious and calm — ideal for longer technical tutorials.</span></span>
-              <span class="tooltip-wrap"><span class="tooltip-icon">[Cinematic Reveal]</span><span class="tooltip-text">Quiet piano over strings, rising orchestral layers into a triumphant swell at 100 BPM. Dramatic — perfect for short product reveals.</span></span>
-            </div>
+          <div class="music-pills" id="opt-music" data-value="">
+            <button class="music-pill active" data-val="" onclick="setMusic(this)">None</button>
+            <button class="music-pill" data-val="lofi-chill" onclick="setMusic(this)">Lo-fi Chill</button>
+            <button class="music-pill" data-val="upbeat-tech" onclick="setMusic(this)">Upbeat Tech</button>
+            <button class="music-pill" data-val="ambient-focus" onclick="setMusic(this)">Ambient Focus</button>
+            <button class="music-pill" data-val="cinematic-reveal" onclick="setMusic(this)">Cinematic</button>
+          </div>
+        </div>
+        <div class="opt-row">
+          <div class="opt-label">Subtitles</div>
+          <div class="seg-control" id="opt-subtitles" data-value="off">
+            <button class="seg-btn active" data-val="off" onclick="setSeg(this)">Off</button>
+            <button class="seg-btn" data-val="on" onclick="setSeg(this)">On</button>
           </div>
         </div>
       </div>
-      <button id="generate-btn" onclick="submitDemo()">Generate Demo</button>
+      <div style="text-align:center"><button id="generate-btn" onclick="submitDemo()">Generate Demo</button></div>
     </div>
 
     <!-- Progress -->
@@ -150,6 +196,10 @@
         <span class="status-text" id="status-text">Starting...</span>
       </div>
       <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <div id="memory-badge" class="memory-badge hidden">
+        <span id="memory-text"></span>
+        <a href="https://www.trychroma.com" target="_blank" rel="noopener">ChromaDB</a>
+      </div>
       <h2>Action Plan</h2>
       <ul class="step-list" id="step-list"></ul>
     </div>
@@ -169,27 +219,38 @@
       <strong>Error:</strong> <span id="error-text"></span>
       <div class="btn-row"><button onclick="resetForm()">Try Again</button></div>
     </div>
+
+    <footer>
+      Built by <a href="https://www.linkedin.com/in/lorenjphillips/" target="_blank" rel="noopener">Loren Phillips</a><span>, </span><a href="https://www.linkedin.com/in/yonge-bai/" target="_blank" rel="noopener">Yonge Bai</a><span> & </span><span>Tokens</span>
+    </footer>
   </div>
 
   <script>
     let currentJobId = null;
     let pollTimer = null;
 
-    function toggleOptions() {
-      const btn = document.getElementById('options-toggle');
-      const panel = document.getElementById('options-panel');
-      btn.classList.toggle('open');
-      panel.classList.toggle('open');
+    function setSeg(btn) {
+      const parent = btn.parentElement;
+      parent.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      parent.dataset.value = btn.dataset.val;
+    }
+
+    function setMusic(btn) {
+      const parent = btn.parentElement;
+      parent.querySelectorAll('.music-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      parent.dataset.value = btn.dataset.val;
     }
 
     function getOptions() {
       const opts = {};
-      const quality = document.getElementById('opt-quality').value;
+      const quality = document.getElementById('opt-quality').dataset.value;
       if (quality !== 'medium') opts.videoQuality = quality;
-      const speed = document.getElementById('opt-speed').value;
+      const speed = document.getElementById('opt-speed').dataset.value;
       if (speed !== 'normal') opts.speed = speed;
-      if (document.getElementById('opt-subtitles').checked) opts.subtitles = true;
-      const music = document.getElementById('opt-music').value;
+      if (document.getElementById('opt-subtitles').dataset.value === 'on') opts.subtitles = true;
+      const music = document.getElementById('opt-music').dataset.value;
       if (music) opts.backgroundMusic = music;
       return Object.keys(opts).length > 0 ? opts : undefined;
     }
@@ -253,6 +314,13 @@
           failed: 'Failed',
         };
         document.getElementById('status-text').textContent = statusLabels[job.status] || job.status;
+
+        // Show memory badge if similar demos were found
+        if (job.similarDemosFound > 0) {
+          document.getElementById('memory-badge').classList.remove('hidden');
+          document.getElementById('memory-text').textContent =
+            `Memory: ${job.similarDemosFound} similar demo${job.similarDemosFound > 1 ? 's' : ''} used as context`;
+        }
 
         // Render plan steps
         if (job.plan && job.plan.length > 0) {
@@ -329,6 +397,7 @@
       document.getElementById('progress-section').classList.add('hidden');
       document.getElementById('result-section').classList.add('hidden');
       document.getElementById('error-section').classList.add('hidden');
+      document.getElementById('memory-badge').classList.add('hidden');
       document.getElementById('spinner').classList.remove('hidden');
       document.getElementById('generate-btn').disabled = false;
       document.getElementById('site-url').disabled = false;

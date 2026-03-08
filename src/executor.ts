@@ -2,12 +2,86 @@ import "dotenv/config";
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
+import { GoogleGenAI } from "@google/genai";
 import { ActionStep, ActionLogEntry, DemoOptions } from "./types.js";
-import { createBrowserbaseStagehand } from "./stagehand.js";
+import { generateVoiceoverPackage, type InteractionEvent } from "./voiceover.js";
+import { normalizeInstructionSentence } from "./interaction-events.js";
 
 const DEFAULT_OUTPUT_DIR = path.resolve("output");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Max time window any single event should occupy (prevents last-event bloat). */
+const MAX_EVENT_WINDOW_MS = 8000;
+/** Events with windows shorter than this are too brief for TTS and are skipped. */
+const MIN_EVENT_WINDOW_MS = 2000;
+/**
+ * Gap threshold for merging nearby events into one voiceover segment.
+ * Higher = fewer, longer segments → more natural pacing.
+ * Pipeline actions are typically 2.5–3s apart, so 5s merges most consecutive pairs.
+ */
+const PIPELINE_MAX_GAP_MS = 5000;
+
+/** Convert action log entries to InteractionEvent[] for voiceover.ts */
+function actionLogToInteractionEvents(
+  actionLog: ActionLogEntry[],
+  videoDurationMs: number,
+): InteractionEvent[] {
+  const events: InteractionEvent[] = [];
+  const entries = actionLog.filter(
+    (e) => e.success && e.action.action !== "wait",
+  );
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const startMs = entry.timestamp_ms;
+    const rawEndMs = entries[i + 1]?.timestamp_ms ?? videoDurationMs;
+    // Cap the window so the last event doesn't span the entire remaining video
+    const endMs = Math.min(rawEndMs, startMs + MAX_EVENT_WINDOW_MS);
+    if (endMs <= startMs) continue;
+    // Skip events with very short windows — TTS would be cut off mid-word
+    if (endMs - startMs < MIN_EVENT_WINDOW_MS) continue;
+
+    const a = entry.action;
+    let device: "mouse" | "keyboard" = "mouse";
+    let kind: InteractionEvent["kind"] = "click";
+    let instruction: string;
+
+    if (a.action === "goto") {
+      instruction = `Navigate to ${a.url}.`;
+    } else if (a.action === "act") {
+      instruction = normalizeInstructionSentence(a.instruction);
+      // Infer device/kind from instruction text
+      const lower = a.instruction.toLowerCase();
+      if (/\b(type|fill|enter|input)\b/.test(lower)) {
+        device = "keyboard";
+        kind = "type";
+      } else if (/\b(scroll|wheel)\b/.test(lower)) {
+        kind = "scroll";
+      } else if (/\b(press|hit|key|tab|enter|escape)\b/.test(lower)) {
+        device = "keyboard";
+        kind = "press";
+      }
+    } else if (a.action === "scroll") {
+      kind = "scroll";
+      instruction = `Scroll ${a.direction}.`;
+    } else {
+      continue;
+    }
+
+    events.push({
+      id: `event-${String(startMs).padStart(6, "0")}-${String(i + 1).padStart(2, "0")}`,
+      device,
+      kind,
+      instruction,
+      actionDescription: instruction,
+      startMs,
+      endMs,
+    });
+  }
+
+  return events;
+}
 
 export interface ExecutorOptions {
   outputDir?: string;
@@ -37,8 +111,13 @@ export async function executeActionPlan(
   // Viewport
   const viewport = demoOpts.viewport ?? { width: 1280, height: 720 };
 
-  // Log future features
-  if (demoOpts.subtitles) console.log("[executor] TODO: subtitles enabled (not yet implemented)");
+  const subtitlesEnabled = demoOpts.subtitles ?? false;
+
+  // Narration settings
+  const narrationOpts = demoOpts.narration || null;
+  const narrationEnabled = narrationOpts?.enabled ?? false;
+  const narrationVoice = narrationOpts?.voice || "Puck";
+  const narrationContext = narrationOpts?.context;
 
   // Resolve music track path
   const musicTrack = demoOpts.backgroundMusic
@@ -185,7 +264,7 @@ export async function executeActionPlan(
     try {
       execSync(
         `ffmpeg -y -framerate ${actualFps} -i "${FRAMES_DIR}/frame_%05d.jpg" ` +
-          `-vf "minterpolate=fps=${targetFps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" ` +
+          `-vf "minterpolate=fps=${targetFps}:mi_mode=dup" ` +
           `-c:v libx264 -pix_fmt yuv420p -b:v ${quality.bitrate} "${videoPath}"`,
         { stdio: "pipe", timeout: 300000 }
       );
@@ -214,22 +293,235 @@ export async function executeActionPlan(
           "[executor] ffmpeg error:",
           err2.stderr?.toString().slice(-500) || err2.message
         );
+        throw new Error("Video encoding failed: ffmpeg not available");
       }
     }
   }
 
-  // Mix in background music (looped, faded) if requested
+  // Burn subtitles if enabled
+  if (subtitlesEnabled && actionLog.length > 0 && fs.existsSync(videoPath)) {
+    console.log("[executor] Generating subtitles...");
+    try {
+      // Get video duration
+      const durationStr = execSync(
+        `ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`,
+        { encoding: "utf8", timeout: 10000 }
+      ).trim();
+      const videoDurationMs = parseFloat(durationStr) * 1000;
+
+      // Build ASS file from action log
+      const assPath = path.join(OUTPUT_DIR, "captions.ass");
+      const assHeader = `[Script Info]
+Title: Headless Horsemen Captions
+ScriptType: v4.00+
+WrapStyle: 0
+PlayResX: ${viewport.width}
+PlayResY: ${viewport.height}
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,26,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,2,0,2,40,40,50,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
+
+      const msToASS = (ms: number): string => {
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        const s = Math.floor((ms % 60000) / 1000);
+        const cs = Math.floor((ms % 1000) / 10);
+        return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+      };
+
+      let dialogues = "";
+      for (let i = 0; i < actionLog.length; i++) {
+        const entry = actionLog[i];
+        const startMs = entry.timestamp_ms;
+        const endMs = actionLog[i + 1]?.timestamp_ms ?? videoDurationMs;
+        if (endMs <= startMs) continue;
+
+        let text = "";
+        const a = entry.action;
+        if (a.action === "goto") text = `Navigating to ${a.url}`;
+        else if (a.action === "act") text = a.instruction;
+        else if (a.action === "scroll") text = `Scrolling ${a.direction}`;
+        else if (a.action === "wait") text = `Waiting ${a.seconds}s...`;
+        if (!text) continue;
+
+        dialogues += `Dialogue: 0,${msToASS(startMs)},${msToASS(endMs)},Default,,0,0,0,,${text}\n`;
+      }
+
+      fs.writeFileSync(assPath, assHeader + dialogues);
+      console.log(`[executor] ASS file written: ${assPath}`);
+
+      // Burn captions + fade in/out
+      const fadeDuration = 0.8;
+      const fadeOutStart = Math.max(0, parseFloat(durationStr) - fadeDuration);
+      const captionedPath = path.join(OUTPUT_DIR, "demo_captioned.mp4");
+
+      execSync(
+        `ffmpeg -y -i "${videoPath}" ` +
+          `-vf "ass=${assPath},fade=t=in:st=0:d=${fadeDuration},fade=t=out:st=${fadeOutStart}:d=${fadeDuration}" ` +
+          `-c:v libx264 -pix_fmt yuv420p -b:v ${quality.bitrate} "${captionedPath}"`,
+        { stdio: "pipe", timeout: 300000 }
+      );
+
+      // Replace original with captioned version
+      fs.renameSync(captionedPath, videoPath);
+      console.log("[executor] Subtitles burned successfully.");
+    } catch (err: any) {
+      console.error("[executor] Subtitle burning failed:", err.stderr?.toString().slice(-300) || err.message);
+      // Keep the video without subtitles
+    }
+  }
+
+  // Generate TTS narration and mux into video if enabled
+  if (narrationEnabled && actionLog.length > 0 && fs.existsSync(videoPath)) {
+    console.log("[executor] Generating TTS narration...");
+    try {
+      // Get video duration
+      const durationStr = execSync(
+        `ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`,
+        { encoding: "utf8", timeout: 10000 }
+      ).trim();
+      const videoDurationMs = parseFloat(durationStr) * 1000;
+
+      // Convert action log to interaction events
+      const events = actionLogToInteractionEvents(actionLog, videoDurationMs);
+      if (events.length > 0) {
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+        const voiceoverDir = path.join(OUTPUT_DIR, "voiceover");
+
+        const { manifest } = await generateVoiceoverPackage({
+          ai,
+          context: narrationContext ?? "A concise screen-recorded product demo.",
+          events,
+          outputDir: voiceoverDir,
+          voiceName: narrationVoice,
+          sourceVideo: videoPath,
+        });
+
+        // Mux voiceover segments into video
+        const audioSegments = manifest.segments.filter((s) => s.audioFile);
+        if (audioSegments.length > 0) {
+          const narrated = path.join(OUTPUT_DIR, "demo_narrated.mp4");
+          const ffmpegArgs = ["-y", "-i", videoPath];
+          for (const seg of audioSegments) {
+            ffmpegArgs.push("-i", path.join(voiceoverDir, seg.audioFile!));
+          }
+
+          // Build adelay filters for each segment
+          const delayFilters = audioSegments.map((seg, idx) => {
+            const delayMs = Math.max(0, Math.round(seg.startMs));
+            return `[${idx + 1}:a]adelay=${delayMs}:all=1[a${idx}]`;
+          });
+
+          let filterComplex: string;
+          if (audioSegments.length === 1) {
+            filterComplex = `${delayFilters[0]};[a0]anull[aout]`;
+          } else {
+            const labels = audioSegments.map((_, idx) => `[a${idx}]`).join("");
+            filterComplex =
+              `${delayFilters.join(";")};` +
+              `${labels}amix=inputs=${audioSegments.length}:normalize=0[aout]`;
+          }
+
+          ffmpegArgs.push(
+            "-filter_complex", filterComplex,
+            "-map", "0:v:0", "-map", "[aout]",
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+            "-movflags", "+faststart", narrated,
+          );
+
+          execSync(ffmpegArgs.map((a) => `"${a}"`).join(" "), {
+            stdio: "pipe",
+            timeout: 300000,
+            shell: "/bin/sh",
+          });
+
+          fs.renameSync(narrated, videoPath);
+          console.log("[executor] TTS narration muxed successfully.");
+        }
+      } else {
+        console.log("[executor] No narrable events found, skipping TTS.");
+      }
+    } catch (err: any) {
+      console.error("[executor] TTS narration failed:", err.stderr?.toString().slice(-300) || err.message);
+      // Non-fatal: keep video without narration
+    }
+  }
+
+  // Mix in background music (crossfade-looped, low volume, faded out) if requested
   if (musicTrack && fs.existsSync(musicTrack) && fs.existsSync(videoPath)) {
     const withMusicPath = path.join(OUTPUT_DIR, "demo_music.mp4");
-    console.log("[executor] Mixing background music (looped)...");
+    console.log("[executor] Mixing background music (crossfade-looped)...");
     try {
+      // Get video duration for proper fade-out timing
+      const durationStr = execSync(
+        `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`,
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+      ).trim();
+      const videoDurationSec = Math.floor(parseFloat(durationStr) || 90);
+      const fadeOutStart = Math.max(0, videoDurationSec - 4);
+
+      // Get music clip duration for crossfade math
+      const clipDurStr = execSync(
+        `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${musicTrack}"`,
+        { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+      ).trim();
+      const clipDur = Math.floor(parseFloat(clipDurStr) || 30);
+      const xfade = 3; // crossfade duration in seconds
+      const loopOffset = clipDur - xfade;
+
+      // Build crossfade-looped background track: 3 copies blended at seams
+      const loopFilterParts = [
+        `[0:a]afade=t=out:st=${loopOffset}:d=${xfade}[a0]`,
+        `[1:a]afade=t=in:st=0:d=${xfade},afade=t=out:st=${loopOffset}:d=${xfade},adelay=${loopOffset * 1000}|${loopOffset * 1000}[a1]`,
+        `[2:a]afade=t=in:st=0:d=${xfade},adelay=${loopOffset * 2 * 1000}|${loopOffset * 2 * 1000}[a2]`,
+        `[a0][a1][a2]amix=inputs=3:duration=longest:normalize=0,` +
+          `atrim=0:${videoDurationSec + 1},` +
+          `afade=t=in:st=0:d=2,afade=t=out:st=${fadeOutStart}:d=3.5,` +
+          `volume=0.12[bgloop]`,
+      ].join(";");
+
+      // First pass: create the looped background track
+      const bgTrackPath = path.join(OUTPUT_DIR, "bg_loop.wav");
       execSync(
-        `ffmpeg -y -i "${videoPath}" -stream_loop -1 -i "${musicTrack}" ` +
-          `-filter_complex "[1:a]volume=0.3,afade=t=out:st=0:d=3[music];[music]apad[m];[m]atrim=0:duration=999[trimmed]" ` +
-          `-map 0:v -map "[trimmed]" -c:v copy -c:a aac -b:a 128k -shortest "${withMusicPath}"`,
+        `ffmpeg -y -i "${musicTrack}" -i "${musicTrack}" -i "${musicTrack}" ` +
+          `-filter_complex "${loopFilterParts}" -map "[bgloop]" "${bgTrackPath}"`,
         { stdio: "pipe", timeout: 120000 }
       );
-      // Replace original with music version
+
+      // Check if video has an existing audio stream
+      let hasAudio = false;
+      try {
+        const audioCheck = execSync(
+          `ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "${videoPath}"`,
+          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+        ).trim();
+        hasAudio = audioCheck.length > 0;
+      } catch {}
+
+      // Second pass: mix background track under the video
+      if (hasAudio) {
+        // Video has audio (e.g. TTS narration) — mix music underneath
+        execSync(
+          `ffmpeg -y -i "${videoPath}" -i "${bgTrackPath}" ` +
+            `-filter_complex "[0:a][1:a]amix=inputs=2:duration=first:normalize=0,afade=t=out:st=${fadeOutStart}:d=3.5[aout]" ` +
+            `-map 0:v:0 -map "[aout]" -c:v copy -c:a aac -b:a 192k -movflags +faststart "${withMusicPath}"`,
+          { stdio: "pipe", timeout: 120000 }
+        );
+      } else {
+        // Video-only (no TTS) — add music as the sole audio track
+        execSync(
+          `ffmpeg -y -i "${videoPath}" -i "${bgTrackPath}" ` +
+            `-map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart "${withMusicPath}"`,
+          { stdio: "pipe", timeout: 120000 }
+        );
+      }
+
+      fs.unlinkSync(bgTrackPath);
       fs.renameSync(withMusicPath, videoPath);
       console.log("[executor] Background music mixed successfully.");
     } catch (err: any) {

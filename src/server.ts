@@ -5,6 +5,7 @@ import * as path from "path";
 import * as crypto from "crypto";
 import { generateActionPlan } from "./generator.js";
 import { executeActionPlan } from "./executor.js";
+import { initMemory, storeDemo } from "./memory.js";
 import type { ActionStep, ActionLogEntry, DemoRequest, DemoOptions } from "./types.js";
 
 const app = express();
@@ -29,6 +30,7 @@ interface DemoJob {
   plan: ActionStep[] | null;
   actionLog: ActionLogEntry[] | null;
   progress: { currentStep: number; totalSteps: number; currentAction: string } | null;
+  similarDemosFound: number;
   videoPath: string | null;
   error: string | null;
   createdAt: string;
@@ -71,6 +73,7 @@ app.post("/demos", (req, res) => {
     plan: null,
     actionLog: null,
     progress: null,
+    similarDemosFound: 0,
     videoPath: null,
     error: null,
     createdAt: new Date().toISOString(),
@@ -100,6 +103,7 @@ app.get("/demos/:id", (req, res) => {
     demoTask: job.demoTask,
     plan: job.plan,
     progress: job.progress,
+    similarDemosFound: job.similarDemosFound,
     createdAt: job.createdAt,
     completedAt: job.completedAt,
   };
@@ -139,6 +143,8 @@ app.get("/demos/:id/video", (req, res) => {
     res.status(404).json({ error: "Video file missing" });
     return;
   }
+  res.setHeader("Content-Type", "video/mp4");
+  res.setHeader("Content-Disposition", `inline; filename="demo.mp4"`);
   res.sendFile(job.videoPath);
 });
 
@@ -148,10 +154,11 @@ async function runPipeline(job: DemoJob) {
   const jobDir = path.resolve("output", job.id);
 
   try {
-    // Phase 1: Generate action plan
+    // Phase 1: Generate action plan (with ChromaDB memory context)
     console.log(`[server] Job ${job.id}: generating plan...`);
-    const steps = await generateActionPlan({ siteUrl: job.siteUrl, demoTask: job.demoTask }, job.options);
+    const { steps, similarDemosFound } = await generateActionPlan({ siteUrl: job.siteUrl, demoTask: job.demoTask }, job.options);
     job.plan = steps;
+    job.similarDemosFound = similarDemosFound;
     job.status = "executing";
 
     // Phase 2: Execute
@@ -171,9 +178,15 @@ async function runPipeline(job: DemoJob) {
     job.status = "encoding";
     job.actionLog = actionLog;
     job.videoPath = path.resolve(videoPath);
+    if (!fs.existsSync(job.videoPath)) {
+      throw new Error("Video encoding failed — file was not created");
+    }
     job.status = "done";
     job.completedAt = new Date().toISOString();
     console.log(`[server] Job ${job.id}: done! Video: ${videoPath}`);
+
+    // Store successful demo in ChromaDB for future recall
+    storeDemo(job.id, job.siteUrl, job.demoTask, job.plan!).catch(() => {});
   } catch (err: any) {
     job.status = "failed";
     job.error = err.message || String(err);
@@ -187,6 +200,10 @@ async function runPipeline(job: DemoJob) {
 // --------------- Start ---------------
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`[server] Headless Horsemen running on 0.0.0.0:${PORT}`);
+
+// Init ChromaDB memory, then start server
+initMemory().finally(() => {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`[server] Headless Horsemen running on 0.0.0.0:${PORT}`);
+  });
 });

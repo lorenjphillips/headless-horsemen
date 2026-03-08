@@ -10,7 +10,7 @@ import {
 
 const DEFAULT_SCRIPT_MODEL = "gemini-3.1-flash-lite-preview";
 const DEFAULT_TTS_MODEL = "gemini-2.5-pro-preview-tts";
-const DEFAULT_VOICE_NAME = "Zephyr";
+const DEFAULT_VOICE_NAME = "Puck";
 const DEFAULT_SEGMENT_GAP_MS = 1500;
 export type {
   InteractionDevice,
@@ -501,7 +501,7 @@ async function synthesizeSegmentAudio(params: {
           {
             text: [
               "Read this product demo voiceover line exactly as written.",
-              "Use a warm, friendly, concise delivery and do not add extra words.",
+              "Use a warm, friendly, concise delivery in the style of an Apple Keynote presentation and do not add extra words.",
               "",
               script,
             ].join("\n"),

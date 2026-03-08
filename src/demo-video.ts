@@ -2,6 +2,7 @@ import type { Action, Stagehand } from "@browserbasehq/stagehand";
 import { execSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import { chromium } from "playwright";
 
 type BrowserPage = any;
 
@@ -12,13 +13,16 @@ const DEFAULT_VIEWPORT = {
 
 const DEFAULT_OPTIONS = {
   outputDir: path.resolve("output"),
-  rawCaptureFps: 5,
-  outputFps: 15,
+  rawCaptureFps: 30,
+  outputFps: 30,
   fastForwardMultiplier: 6,
   movementHoverHoldMs: 120,
   actionSettleMs: 900,
   gotoSettleMs: 1800,
 };
+
+const DEFAULT_CAMERA_TRANSITION_MS = 260;
+const MIN_CAMERA_TRANSITION_MS = 140;
 
 type CursorKind = "default" | "pointer" | "text";
 
@@ -86,6 +90,43 @@ interface ManualTargetSnapshot extends TargetSnapshot {
   label: string;
 }
 
+const CURSOR_SVG_ASSET_PATHS: Record<CursorKind, string> = {
+  default: path.resolve("svgs/default.svg"),
+  pointer: path.resolve("svgs/handpointing.svg"),
+  text: path.resolve("svgs/textcursor.svg"),
+};
+
+const CURSOR_HOTSPOTS: Record<CursorKind, Point> = {
+  default: { x: 10, y: 7 },
+  pointer: { x: 15, y: 8 },
+  text: { x: 16, y: 16 },
+};
+
+const MANUAL_CLICKABLE_SELECTORS = [
+  "button",
+  "a[href]",
+  "summary",
+  "label",
+  "option",
+  "input[type=\"button\"]",
+  "input[type=\"submit\"]",
+  "input[type=\"reset\"]",
+  "[role=\"button\"]",
+  "[role=\"link\"]",
+  "[role=\"tab\"]",
+  "[role=\"option\"]",
+  "[role=\"menuitem\"]",
+] as const;
+
+const MANUAL_INPUT_SELECTORS = [
+  "input",
+  "textarea",
+  "[contenteditable]",
+  "[role=\"textbox\"]",
+  "[role=\"searchbox\"]",
+  "[role=\"combobox\"]",
+] as const;
+
 interface MoveEvent {
   kind: "pointer-move";
   startMs: number;
@@ -149,6 +190,7 @@ interface PauseEvent {
   focus: Point;
   scale: number;
   description: string;
+  transitionMs?: number;
 }
 
 interface NavigateEvent {
@@ -185,6 +227,7 @@ export interface DemoActStep {
   fallbackTexts?: string[];
   fallbackTargetKind?: "clickable" | "input" | "any";
   observeAttempts?: number;
+  optional?: boolean;
 }
 
 export interface DemoPressStep {
@@ -195,6 +238,19 @@ export interface DemoPressStep {
   settleMs?: number;
 }
 
+export interface DemoFocusStep {
+  kind: "focus";
+  stepId?: string;
+  instruction: string;
+  seconds: number;
+  description?: string;
+  scale?: number;
+  transitionMs?: number;
+  fallbackTexts?: string[];
+  fallbackTargetKind?: "clickable" | "input" | "any";
+  observeAttempts?: number;
+}
+
 export interface DemoPauseStep {
   kind: "pause";
   stepId?: string;
@@ -202,12 +258,14 @@ export interface DemoPauseStep {
   description?: string;
   focus?: "center" | "cursor";
   scale?: number;
+  transitionMs?: number;
 }
 
 export type DemoStep =
   | DemoGotoStep
   | DemoActStep
   | DemoPressStep
+  | DemoFocusStep
   | DemoPauseStep;
 
 export interface DemoRunOptions {
@@ -216,6 +274,7 @@ export interface DemoRunOptions {
   rawCaptureFps?: number;
   outputFps?: number;
   fastForwardMultiplier?: number;
+  beforeRender?: () => Promise<void> | void;
 }
 
 export interface DemoArtifacts {
@@ -333,6 +392,10 @@ class DemoTimelineRecorder {
       await this.runGoto(step);
       return;
     }
+    if (step.kind === "focus") {
+      await this.runFocus(step);
+      return;
+    }
     if (step.kind === "pause") {
       await this.runPause(step);
       return;
@@ -361,6 +424,22 @@ class DemoTimelineRecorder {
   }
 
   private async runAct(step: DemoActStep) {
+    try {
+      await this.runActInternal(step);
+    } catch (error) {
+      if (!step.optional) {
+        throw error;
+      }
+      console.warn("Optional act step failed, continuing.", {
+        stepId: step.stepId,
+        instruction: step.instruction,
+        error: formatErrorForLog(error),
+      });
+      await this.capturer.captureNow().catch(() => undefined);
+    }
+  }
+
+  private async runActInternal(step: DemoActStep) {
     if (/\bscroll\b/i.test(step.instruction)) {
       await this.runFallbackActivity(
         step.instruction,
@@ -375,48 +454,17 @@ class DemoTimelineRecorder {
       return;
     }
 
-    const action = await this.observeActionWithRetries(step);
-    if (!action) {
-      const manualTarget = step.fallbackTexts?.length
-        ? await findManualTargetByText(this.page, {
-            texts: step.fallbackTexts,
-            targetKind:
-              step.fallbackTargetKind ?? (step.text ? "input" : "clickable"),
-            viewport: this.viewport,
-          })
-        : null;
-
-      if (manualTarget) {
-        if (step.text) {
-          await this.performPointType(
-            manualTarget,
-            step.text,
-            manualTarget.label || step.instruction,
-            step.settleMs,
-            step.stepId,
-          );
-          return;
-        }
-
-        await this.performPointClick(
-          manualTarget,
-          manualTarget.label || step.instruction,
-          step.settleMs,
-          step.stepId,
-        );
+    const resolved = await this.resolveTargetForStep(step);
+    if (!resolved) {
+      if (step.optional) {
+        console.warn("Optional act step target not found, skipping.", {
+          stepId: step.stepId,
+          instruction: step.instruction,
+          fallbackTexts: step.fallbackTexts,
+        });
+        await this.capturer.captureNow().catch(() => undefined);
         return;
       }
-
-      const debugSummary = await summarizeVisibleTargets(this.page).catch(
-        () => undefined
-      );
-      if (debugSummary) {
-        console.warn("No observed action or manual fallback target found.", {
-          instruction: step.instruction,
-          summary: debugSummary,
-        });
-      }
-
       await this.runFallbackActivity(
         step.instruction,
         this.cursorPosition,
@@ -430,10 +478,32 @@ class DemoTimelineRecorder {
       return;
     }
 
+    if (!resolved.action) {
+      if (step.text) {
+        await this.performPointType(
+          resolved.target,
+          step.text,
+          resolved.description,
+          step.settleMs,
+          step.stepId,
+        );
+        return;
+      }
+
+      await this.performPointClick(
+        resolved.target,
+        resolved.description,
+        step.settleMs,
+        step.stepId,
+      );
+      return;
+    }
+
+    const { action, target, description } = resolved;
     const method = normalizeMethod(action.method);
     if (method.includes("scroll") || method === "wait") {
       await this.runFallbackActivity(
-        action.description || step.instruction,
+        description,
         this.cursorPosition,
         "default",
         async () => {
@@ -446,21 +516,26 @@ class DemoTimelineRecorder {
     }
 
     const locator = this.page.deepLocator(action.selector);
-    const target = await getTargetSnapshot(this.page, locator, action, this.viewport);
 
-    await this.moveCursorTo(
-      target.point,
-      target.cursor,
-      action.description,
-      step.stepId,
-    );
+    await this.moveCursorTo(target.point, target.cursor, description, step.stepId);
     await wait(this.page, this.options.movementHoverHoldMs);
 
     if (method === "click" || method === "") {
       await this.performClick(
         locator,
         target,
-        action.description,
+        description,
+        step.settleMs,
+        step.stepId,
+      );
+      return;
+    }
+
+    if ((method === "fill" || method === "type") && !step.text && !action.arguments?.[0]) {
+      await this.performClick(
+        locator,
+        target,
+        description,
         step.settleMs,
         step.stepId,
       );
@@ -472,7 +547,7 @@ class DemoTimelineRecorder {
         locator,
         target,
         step.text ?? action.arguments?.[0] ?? "",
-        action.description,
+        description,
         step.settleMs,
         step.stepId,
       );
@@ -491,13 +566,13 @@ class DemoTimelineRecorder {
         stepId: step.stepId,
         position: target.point,
         cursor: target.cursor,
-        description: action.description,
+        description,
       });
       return;
     }
 
     await this.runFallbackActivity(
-      action.description || step.instruction,
+      description,
       target.point,
       target.cursor,
       async () => {
@@ -506,6 +581,35 @@ class DemoTimelineRecorder {
       step.settleMs,
       step.stepId,
     );
+  }
+
+  private async runFocus(step: DemoFocusStep) {
+    const resolved = await this.resolveTargetForStep(step);
+    const target = resolved?.target ?? {
+      point: this.cursorPosition,
+      cursor: this.currentCursorKind,
+    };
+    const description =
+      step.description ??
+      resolved?.description ??
+      `Focus on ${step.instruction}`;
+
+    await this.moveCursorTo(target.point, target.cursor, description, step.stepId);
+    await wait(this.page, this.options.movementHoverHoldMs);
+
+    const startMs = this.capturer.now();
+    await wait(this.page, step.seconds * 1000);
+    await this.capturer.captureNow();
+    this.events.push({
+      kind: "pause",
+      startMs,
+      endMs: this.capturer.now(),
+      stepId: step.stepId,
+      focus: target.point,
+      scale: step.scale ?? 1,
+      description,
+      transitionMs: step.transitionMs,
+    });
   }
 
   private async runPress(step: DemoPressStep) {
@@ -546,10 +650,11 @@ class DemoTimelineRecorder {
       scale: step.scale ?? 1,
       description:
         step.description ?? `Pause for ${step.seconds.toFixed(1)} second(s)`,
+      transitionMs: step.transitionMs,
     });
   }
 
-  private async observeActionWithRetries(step: DemoActStep) {
+  private async observeActionWithRetries(step: DemoActStep | DemoFocusStep) {
     const attempts = Math.max(1, step.observeAttempts ?? 3);
     let lastError: unknown;
 
@@ -578,12 +683,69 @@ class DemoTimelineRecorder {
     return null;
   }
 
+  private async resolveTargetForStep(step: DemoActStep | DemoFocusStep) {
+    const action = await this.observeActionWithRetries(step);
+    if (action) {
+      const locator = this.page.deepLocator(action.selector);
+      const target = await getTargetSnapshot(
+        this.page,
+        locator,
+        action,
+        this.viewport,
+      );
+      return {
+        action,
+        target,
+        description: action.description || step.instruction,
+      };
+    }
+
+    const manualTarget = step.fallbackTexts?.length
+      ? await findManualTargetByText(this.page, {
+          texts: step.fallbackTexts,
+          targetKind:
+            step.fallbackTargetKind ??
+            ("text" in step && step.text ? "input" : "clickable"),
+          viewport: this.viewport,
+        })
+      : null;
+
+    if (manualTarget) {
+      return {
+        action: null,
+        target: manualTarget,
+        description: manualTarget.label || step.instruction,
+      };
+    }
+
+    const debugSummary = await summarizeVisibleTargets(this.page).catch(
+      () => undefined,
+    );
+    if (debugSummary) {
+      console.warn("No observed action or manual fallback target found.", {
+        instruction: step.instruction,
+        summary: debugSummary,
+      });
+    }
+
+    return null;
+  }
+
   private async moveCursorTo(
     targetPoint: Point,
     cursor: CursorKind,
     description: string,
     stepId?: string,
   ) {
+    const distance = Math.hypot(
+      targetPoint.x - this.cursorPosition.x,
+      targetPoint.y - this.cursorPosition.y,
+    );
+    if (distance < 1 && cursor === this.currentCursorKind) {
+      this.cursorPosition = targetPoint;
+      return;
+    }
+
     const durationMs = computeMovementDurationMs(this.cursorPosition, targetPoint);
     const curve = buildBezierCurve(
       this.cursorPosition,
@@ -764,6 +926,16 @@ class DemoTimelineRecorder {
   }
 }
 
+async function clearBrowserSessionCache(page: BrowserPage) {
+  if (!page || typeof page.sendCDP !== "function") {
+    return;
+  }
+
+  await page.sendCDP("Network.enable").catch(() => undefined);
+  await page.sendCDP("Network.clearBrowserCache").catch(() => undefined);
+  await page.sendCDP("Network.clearBrowserCookies").catch(() => undefined);
+}
+
 export async function runStagehandDemo(
   stagehand: Stagehand,
   steps: DemoStep[],
@@ -785,6 +957,7 @@ export async function runStagehandDemo(
   resetDir(renderedFramesDir);
 
   const page = stagehand.context.pages()[0];
+  await clearBrowserSessionCache(page);
   await page.setViewportSize(viewport.width, viewport.height, {
     deviceScaleFactor: 1,
   });
@@ -836,8 +1009,12 @@ export async function runStagehandDemo(
     },
   });
 
+  if (typeof options.beforeRender === "function") {
+    console.log("[demo-video] Running pre-render cleanup...");
+    await options.beforeRender();
+  }
+
   const renderedFrameCount = await renderCompositedFrames({
-    stagehand,
     rawFrames,
     renderedFramesDir,
     viewport,
@@ -874,7 +1051,6 @@ export async function runStagehandDemo(
 }
 
 async function renderCompositedFrames(args: {
-  stagehand: Stagehand;
   rawFrames: RecordedFrame[];
   renderedFramesDir: string;
   viewport: Viewport;
@@ -884,7 +1060,6 @@ async function renderCompositedFrames(args: {
   outputFps: number;
 }) {
   const {
-    stagehand,
     rawFrames,
     renderedFramesDir,
     viewport,
@@ -894,87 +1069,139 @@ async function renderCompositedFrames(args: {
     outputFps,
   } = args;
 
-  const composerPage = await stagehand.context.newPage(buildComposerDataUrl());
-  await composerPage.setViewportSize(viewport.width, viewport.height, {
-    deviceScaleFactor: 1,
-  });
-  await wait(composerPage, 100);
+  const { composerBrowser, composerPage } = await launchLocalComposer(viewport);
 
-  const outputDurationMs = speedSegments.at(-1)?.outputEndMs ?? 0;
-  const outputFrameCount = Math.max(
-    1,
-    Math.ceil((outputDurationMs / 1000) * outputFps)
-  );
-  console.log(
-    `[demo-video] Rendering ${outputFrameCount} composited frame(s) at ${outputFps} fps...`,
-  );
-
-  const dataUrlCache = new Map<string, string>();
-  let previousRawFramePath = "";
-
-  for (let frameIndex = 0; frameIndex < outputFrameCount; frameIndex += 1) {
-    const outputTimeMs = (frameIndex * 1000) / outputFps;
-    const sourceTimeMs = mapOutputToSourceTime(speedSegments, outputTimeMs);
-    const rawFrame = pickRawFrame(rawFrames, sourceTimeMs);
-    const cursor = sampleCursor(events, sourceTimeMs, viewport);
-    const camera = sampleCamera(
-      cameraKeyframes,
-      sourceTimeMs,
-      cursor.sourcePoint,
-      viewport
+  try {
+    const outputDurationMs = speedSegments.at(-1)?.outputEndMs ?? 0;
+    const outputFrameCount = Math.max(
+      1,
+      Math.ceil((outputDurationMs / 1000) * outputFps)
     );
-    const offset = computeCameraOffset(camera.focus, camera.scale, viewport);
-    const screenPoint = {
-      x: offset.x + cursor.sourcePoint.x * camera.scale,
-      y: offset.y + cursor.sourcePoint.y * camera.scale,
-    };
-
-    const payload: RenderPayload = {
-      scale: camera.scale,
-      offsetX: offset.x,
-      offsetY: offset.y,
-      cursor: {
-        visible: cursor.visible,
-        kind: cursor.kind,
-        x: screenPoint.x,
-        y: screenPoint.y,
-      },
-      clickPulse: sampleClickPulse(events, sourceTimeMs, camera.scale, offset),
-    };
-
-    if (rawFrame.filePath !== previousRawFramePath) {
-      payload.imageDataUrl = getImageDataUrl(rawFrame.filePath, dataUrlCache);
-      previousRawFramePath = rawFrame.filePath;
-    }
-
-    await composerPage.evaluate(async (state: RenderPayload) => {
-      const render = (window as any).__renderFrame;
-      await render(state);
-    }, payload);
-
-    const screenshot = await composerPage.screenshot({
-      scale: "css",
-      type: "png",
-    });
-    const outputFramePath = path.join(
-      renderedFramesDir,
-      `frame_${String(frameIndex).padStart(5, "0")}.png`
+    console.log(
+      `[demo-video] Rendering ${outputFrameCount} composited frame(s) at ${outputFps} fps...`,
     );
-    fs.writeFileSync(outputFramePath, screenshot);
 
-    if (
-      frameIndex === 0 ||
-      frameIndex === outputFrameCount - 1 ||
-      (frameIndex + 1) % 120 === 0
-    ) {
-      console.log(
-        `[demo-video] Render progress: ${frameIndex + 1}/${outputFrameCount}`,
+    const dataUrlCache = new Map<string, string>();
+    let previousRawFramePath = "";
+    const renderStartedAt = Date.now();
+
+    for (let frameIndex = 0; frameIndex < outputFrameCount; frameIndex += 1) {
+      const outputTimeMs = (frameIndex * 1000) / outputFps;
+      const sourceTimeMs = mapOutputToSourceTime(speedSegments, outputTimeMs);
+      const rawFrame = pickRawFrame(rawFrames, sourceTimeMs);
+      const cursor = sampleCursor(events, sourceTimeMs, viewport);
+      const camera = sampleCamera(cameraKeyframes, sourceTimeMs, viewport);
+      const offset = computeCameraOffset(camera.focus, camera.scale, viewport);
+      const screenPoint = {
+        x: offset.x + cursor.sourcePoint.x * camera.scale,
+        y: offset.y + cursor.sourcePoint.y * camera.scale,
+      };
+
+      const payload: RenderPayload = {
+        scale: camera.scale,
+        offsetX: offset.x,
+        offsetY: offset.y,
+        cursor: {
+          visible: cursor.visible,
+          kind: cursor.kind,
+          x: screenPoint.x,
+          y: screenPoint.y,
+        },
+        clickPulse: sampleClickPulse(events, sourceTimeMs, camera.scale, offset),
+      };
+
+      if (rawFrame.filePath !== previousRawFramePath) {
+        payload.imageDataUrl = getImageDataUrl(rawFrame.filePath, dataUrlCache);
+        previousRawFramePath = rawFrame.filePath;
+      }
+
+      await composerPage.evaluate(async (state: RenderPayload) => {
+        const render = (window as any).__renderFrame;
+        await render(state);
+      }, payload);
+
+      const screenshot = await composerPage.screenshot({
+        scale: "css",
+        type: "png",
+      });
+      const outputFramePath = path.join(
+        renderedFramesDir,
+        `frame_${String(frameIndex).padStart(5, "0")}.png`
       );
+      fs.writeFileSync(outputFramePath, screenshot);
+
+      if (
+        frameIndex === 0 ||
+        frameIndex === outputFrameCount - 1 ||
+        (frameIndex + 1) % 120 === 0
+      ) {
+        const elapsedSeconds = Math.max(1, (Date.now() - renderStartedAt) / 1000);
+        const framesDone = frameIndex + 1;
+        const framesPerSecond = framesDone / elapsedSeconds;
+        const remainingSeconds = Math.max(
+          0,
+          (outputFrameCount - framesDone) / Math.max(framesPerSecond, 0.01),
+        );
+        console.log(
+          `[demo-video] Render progress: ${framesDone}/${outputFrameCount} (${framesPerSecond.toFixed(2)} fps, eta ${remainingSeconds.toFixed(0)}s)`,
+        );
+      }
     }
+
+    return outputFrameCount;
+  } finally {
+    await composerPage.close().catch(() => undefined);
+    await composerBrowser.close().catch(() => undefined);
+  }
+}
+
+async function launchLocalComposer(viewport: Viewport) {
+  const defaultPath =
+    process.platform === "darwin"
+      ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+      : "/usr/bin/google-chrome-stable";
+
+  const executablePath =
+    process.env.LOCAL_CHROME_PATH ||
+    process.env.GOOGLE_CHROME_BIN ||
+    defaultPath;
+
+  if (!fs.existsSync(executablePath)) {
+    throw new Error(
+      `Local Chrome executable not found at ${executablePath}. Set LOCAL_CHROME_PATH or GOOGLE_CHROME_BIN.`,
+    );
   }
 
-  await composerPage.close().catch(() => undefined);
-  return outputFrameCount;
+  console.log(
+    `[demo-video] Launching local compositor with ${executablePath}...`,
+  );
+
+  const composerBrowser = await chromium.launch({
+    executablePath,
+    headless: true,
+    args: [
+      "--disable-breakpad",
+      "--disable-crash-reporter",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--hide-scrollbars",
+      "--mute-audio",
+    ],
+  });
+  const composerPage = await composerBrowser.newPage({
+    viewport: {
+      width: viewport.width,
+      height: viewport.height,
+    },
+    deviceScaleFactor: 1,
+  });
+  await composerPage.goto(buildComposerDataUrl());
+  await composerPage.waitForTimeout(100);
+
+  return {
+    composerBrowser,
+    composerPage,
+  };
 }
 
 function buildSpeedSegments(args: {
@@ -1058,6 +1285,9 @@ function buildCameraKeyframes(args: {
 }) {
   const { sourceDurationMs, events, viewport, initialFocus } = args;
   const keyframes: CameraKeyframe[] = [];
+  const pauseEvents = events.filter(
+    (event): event is PauseEvent => event.kind === "pause",
+  );
 
   const pushKeyframe = (atMs: number, focus: Point, scale: number) => {
     const previousAt = keyframes.at(-1)?.atMs ?? -1;
@@ -1069,6 +1299,26 @@ function buildCameraKeyframes(args: {
   };
 
   pushKeyframe(0, initialFocus, 1);
+
+  if (pauseEvents.length > 0) {
+    let currentFocus = initialFocus;
+    let currentScale = 1;
+
+    for (const event of pauseEvents) {
+      const transitionEndMs = Math.min(
+        event.endMs,
+        event.startMs + resolvePauseTransitionMs(event),
+      );
+      pushKeyframe(event.startMs, currentFocus, currentScale);
+      pushKeyframe(transitionEndMs, event.focus, event.scale);
+      pushKeyframe(event.endMs, event.focus, event.scale);
+      currentFocus = event.focus;
+      currentScale = event.scale;
+    }
+
+    pushKeyframe(sourceDurationMs, currentFocus, currentScale);
+    return keyframes;
+  }
 
   for (const event of events) {
     if (event.kind === "pointer-move") {
@@ -1107,10 +1357,21 @@ function buildCameraKeyframes(args: {
   return keyframes;
 }
 
+function resolvePauseTransitionMs(event: PauseEvent) {
+  const durationMs = Math.max(0, event.endMs - event.startMs);
+  const requested =
+    event.transitionMs ??
+    Math.min(
+      DEFAULT_CAMERA_TRANSITION_MS,
+      Math.max(MIN_CAMERA_TRANSITION_MS, Math.round(durationMs * 0.25))
+    );
+
+  return Math.min(durationMs, requested);
+}
+
 function sampleCamera(
   keyframes: CameraKeyframe[],
   sourceTimeMs: number,
-  cursorPoint: Point,
   viewport: Viewport
 ) {
   const previous = findPreviousKeyframe(keyframes, sourceTimeMs);
@@ -1118,7 +1379,7 @@ function sampleCamera(
 
   if (!previous || !next || previous.atMs === next.atMs) {
     return {
-      focus: clampPointToViewport(previous?.focus ?? cursorPoint, viewport),
+      focus: clampPointToViewport(previous?.focus ?? keyframes[0].focus, viewport),
       scale: previous?.scale ?? 1,
     };
   }
@@ -1126,7 +1387,7 @@ function sampleCamera(
   const progress = clamp01(
     (sourceTimeMs - previous.atMs) / (next.atMs - previous.atMs)
   );
-  const eased = easeInOutSine(progress);
+  const eased = easeSmootherStep(progress);
 
   const focus = {
     x: lerp(previous.focus.x, next.focus.x, eased),
@@ -1134,13 +1395,7 @@ function sampleCamera(
   };
 
   return {
-    focus: clampPointToViewport(
-      {
-        x: lerp(focus.x, cursorPoint.x, 0.35),
-        y: lerp(focus.y, cursorPoint.y, 0.35),
-      },
-      viewport
-    ),
+    focus: clampPointToViewport(focus, viewport),
     scale: lerp(previous.scale, next.scale, eased),
   };
 }
@@ -1296,7 +1551,17 @@ function getImageDataUrl(filePath: string, cache: Map<string, string>) {
   return dataUrl;
 }
 
+function readCursorSvgAssets() {
+  return {
+    default: fs.readFileSync(CURSOR_SVG_ASSET_PATHS.default, "utf8").trim(),
+    pointer: fs.readFileSync(CURSOR_SVG_ASSET_PATHS.pointer, "utf8").trim(),
+    text: fs.readFileSync(CURSOR_SVG_ASSET_PATHS.text, "utf8").trim(),
+  };
+}
+
 function buildComposerDataUrl() {
+  const cursorSvgs = readCursorSvgAssets();
+  const hotspots = CURSOR_HOTSPOTS;
   const html = `<!doctype html>
 <html lang="en">
   <head>
@@ -1384,17 +1649,8 @@ function buildComposerDataUrl() {
       <div id="cursor"></div>
     </div>
     <script>
-      const cursorSvgs = {
-        default: '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="30" viewBox="0 0 22 30" fill="none"><path d="M2.2 1.5L2.18 27.2L8.44 18.58L14.02 28.08L18.02 26.08L12.44 16.56H20.5L2.2 1.5Z" fill="black"/><path d="M2.2 1.5L2.18 27.2L8.44 18.58L14.02 28.08L18.02 26.08L12.44 16.56H20.5L2.2 1.5Z" stroke="white" stroke-width="1.4" stroke-linejoin="round"/></svg>',
-        pointer: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="30" viewBox="0 0 24 30" fill="none"><path d="M8.2 2C6.98 2 6 2.98 6 4.2V13H4.4C2.8 13 1.5 14.3 1.5 15.9C1.5 16.28 1.58 16.66 1.76 17L6.56 26.4C7.04 27.34 8 27.94 9.06 27.94H17.02C18.4 27.94 19.56 26.96 19.8 25.6L20.46 21.72L22.1 22.32C23.36 22.78 24.76 22.14 25.22 20.9C25.68 19.64 25.04 18.24 23.8 17.78L18.92 15.96L17.62 8.38C17.36 6.88 16.08 5.8 14.56 5.8C13.72 5.8 12.96 6.16 12.4 6.76V4.68C12.4 3.18 11.18 1.96 9.68 1.96C9.14 1.96 8.64 2.12 8.2 2Z" fill="black"/><path d="M8.2 2C6.98 2 6 2.98 6 4.2V13H4.4C2.8 13 1.5 14.3 1.5 15.9C1.5 16.28 1.58 16.66 1.76 17L6.56 26.4C7.04 27.34 8 27.94 9.06 27.94H17.02C18.4 27.94 19.56 26.96 19.8 25.6L20.46 21.72L22.1 22.32C23.36 22.78 24.76 22.14 25.22 20.9C25.68 19.64 25.04 18.24 23.8 17.78L18.92 15.96L17.62 8.38C17.36 6.88 16.08 5.8 14.56 5.8C13.72 5.8 12.96 6.16 12.4 6.76V4.68C12.4 3.18 11.18 1.96 9.68 1.96C9.14 1.96 8.64 2.12 8.2 2Z" stroke="white" stroke-width="1.3" stroke-linejoin="round"/></svg>',
-        text: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="28" viewBox="0 0 18 28" fill="none"><path d="M5 2H13V5.2H10.8V22.8H13V26H5V22.8H7.2V5.2H5V2Z" fill="black"/><path d="M2.1 3.1H15.9M2.1 24.9H15.9M9 4.5V23.5" stroke="white" stroke-width="1.6" stroke-linecap="round"/></svg>',
-      };
-
-      const hotspots = {
-        default: { x: 2, y: 1 },
-        pointer: { x: 8, y: 3 },
-        text: { x: 9, y: 14 },
-      };
+      const cursorSvgs = ${JSON.stringify(cursorSvgs)};
+      const hotspots = ${JSON.stringify(hotspots)};
 
       const shot = document.getElementById("shot");
       const stage = document.getElementById("stage");
@@ -1506,6 +1762,171 @@ async function getTargetSnapshot(
   }
 }
 
+function getManualTargetSelectors(
+  targetKind: "clickable" | "input" | "any"
+) {
+  if (targetKind === "clickable") {
+    return [...MANUAL_CLICKABLE_SELECTORS];
+  }
+  if (targetKind === "input") {
+    return [...MANUAL_INPUT_SELECTORS];
+  }
+  return [...new Set([...MANUAL_CLICKABLE_SELECTORS, ...MANUAL_INPUT_SELECTORS])];
+}
+
+function isManualInputSelector(selector: string) {
+  return MANUAL_INPUT_SELECTORS.includes(selector as (typeof MANUAL_INPUT_SELECTORS)[number]);
+}
+
+function scoreManualTargetMatch(values: string[], textNeedles: string[]) {
+  let score = 0;
+  let label = "";
+
+  for (const rawValue of values) {
+    const value = rawValue.trim();
+    if (!value) {
+      continue;
+    }
+
+    const normalized = value.toLowerCase();
+    for (const needle of textNeedles) {
+      if (normalized === needle) {
+        return {
+          score: 1000 + needle.length,
+          label: value,
+        };
+      }
+
+      let candidateScore = 0;
+      if (normalized.startsWith(needle)) {
+        candidateScore = 800 + needle.length;
+      } else if (normalized.includes(needle)) {
+        candidateScore = 600 + needle.length;
+      } else if (needle.includes(normalized) && normalized.length >= 4) {
+        candidateScore = 400 + normalized.length;
+      }
+
+      if (candidateScore > score) {
+        score = candidateScore;
+        label = value;
+      }
+    }
+  }
+
+  return {
+    score,
+    label,
+  };
+}
+
+function formatErrorForLog(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+async function findManualTargetByLocator(
+  page: BrowserPage,
+  args: {
+    texts: string[];
+    targetKind: "clickable" | "input" | "any";
+    viewport: Viewport;
+    selectors: string[];
+  }
+): Promise<ManualTargetSnapshot | null> {
+  const textNeedles = args.texts
+    .map((text) => text.trim().toLowerCase())
+    .filter(Boolean);
+  if (textNeedles.length === 0) {
+    return null;
+  }
+
+  let best:
+    | {
+        score: number;
+        selector: string;
+        index: number;
+        cursor: CursorKind;
+        label: string;
+      }
+    | null = null;
+
+  for (const selector of args.selectors) {
+    const candidates = page.locator(selector);
+    let count = 0;
+    try {
+      count = Math.min(await candidates.count(), 24);
+    } catch {
+      continue;
+    }
+
+    for (let index = 0; index < count; index += 1) {
+      const locator = candidates.nth(index);
+      const isVisible = await locator.isVisible().catch(() => false);
+      if (!isVisible) {
+        continue;
+      }
+
+      const values = [
+        await locator.innerText().catch(() => ""),
+        await locator.textContent().catch(() => ""),
+        await locator.inputValue().catch(() => ""),
+      ]
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+      const matched = scoreManualTargetMatch(values, textNeedles);
+      if (matched.score <= 0) {
+        continue;
+      }
+
+      const score = matched.score + Math.min(120, values.join(" ").length);
+      if (!best || score > best.score) {
+        best = {
+          score,
+          selector,
+          index,
+          cursor:
+            args.targetKind === "input" || isManualInputSelector(selector)
+              ? "text"
+              : "pointer",
+          label: matched.label || values[0] || "",
+        };
+      }
+    }
+  }
+
+  if (!best) {
+    return null;
+  }
+
+  const point = await page
+    .locator(best.selector)
+    .nth(best.index)
+    .centroid()
+    .catch(() => null);
+  if (!point) {
+    return null;
+  }
+
+  return {
+    point: clampPointToViewport(
+      {
+        x: Math.round(point.x),
+        y: Math.round(point.y),
+      },
+      args.viewport
+    ),
+    cursor: best.cursor,
+    label: best.label,
+  };
+}
+
 async function findManualTargetByText(
   page: BrowserPage,
   args: {
@@ -1514,211 +1935,267 @@ async function findManualTargetByText(
     viewport: Viewport;
   }
 ): Promise<ManualTargetSnapshot | null> {
-  const result = await page.evaluate(
-    ({
-      texts,
-      targetKind,
-    }: {
-      texts: string[];
-      targetKind: "clickable" | "input" | "any";
-    }) => {
-      const textNeedles = texts
-        .map((text) => text.trim().toLowerCase())
-        .filter(Boolean);
+  const selectors = getManualTargetSelectors(args.targetKind);
 
-      const visible = (element: Element) => {
-        if (!(element instanceof HTMLElement)) {
-          return false;
-        }
-        const rect = element.getBoundingClientRect();
-        if (rect.width < 6 || rect.height < 6) {
-          return false;
-        }
-        const style = window.getComputedStyle(element);
-        return (
-          style.display !== "none" &&
-          style.visibility !== "hidden" &&
-          style.opacity !== "0"
-        );
-      };
-
-      const clickable = (element: Element) => {
-        const html = element as HTMLElement;
-        const role = (element.getAttribute("role") ?? "").toLowerCase();
-        const tag = element.tagName.toLowerCase();
-        const cursor = window.getComputedStyle(html).cursor;
-        return (
-          tag === "button" ||
-          tag === "a" ||
-          tag === "summary" ||
-          tag === "label" ||
-          tag === "option" ||
-          role === "button" ||
-          role === "link" ||
-          role === "tab" ||
-          role === "option" ||
-          role === "menuitem" ||
-          tag === "input" ||
-          cursor === "pointer" ||
-          html.onclick !== null ||
-          html.tabIndex >= 0
-        );
-      };
-
-      const editable = (element: Element) => {
-        const role = (element.getAttribute("role") ?? "").toLowerCase();
-        const tag = element.tagName.toLowerCase();
-        return (
-          element instanceof HTMLInputElement ||
-          element instanceof HTMLTextAreaElement ||
-          (element as HTMLElement).isContentEditable ||
-          role === "textbox" ||
-          role === "searchbox" ||
-          role === "combobox"
-        );
-      };
-
-      const collectText = (element: Element) => {
-        const html = element as HTMLElement;
-        const values = [
-          html.innerText,
-          html.getAttribute("aria-label"),
-          html.getAttribute("placeholder"),
-          html.getAttribute("title"),
-          html.getAttribute("data-testid"),
-          html.getAttribute("data-test-id"),
-          html.getAttribute("name"),
-          html.getAttribute("value"),
-          element instanceof HTMLInputElement ? element.value : "",
-        ]
-          .filter(Boolean)
-          .map((value) => String(value).trim())
+  try {
+    const result = await page.evaluate(
+      ({
+        texts,
+        targetKind,
+        selectors,
+      }: {
+        texts: string[];
+        targetKind: "clickable" | "input" | "any";
+        selectors: string[];
+      }) => {
+        const textNeedles = texts
+          .map((text) => text.trim().toLowerCase())
           .filter(Boolean);
-
-        return Array.from(new Set(values));
-      };
-
-      const matchScore = (values: string[]) => {
-        let score = 0;
-        let label = "";
-
-        for (const value of values) {
-          const normalized = value.toLowerCase();
-          for (const needle of textNeedles) {
-            if (normalized === needle) {
-              return {
-                score: 1000 + needle.length,
-                label: value,
-              };
-            }
-            if (normalized.startsWith(needle)) {
-              score = Math.max(score, 800 + needle.length);
-              label ||= value;
-            } else if (normalized.includes(needle)) {
-              score = Math.max(score, 600 + needle.length);
-              label ||= value;
-            } else if (needle.includes(normalized) && normalized.length >= 4) {
-              score = Math.max(score, 400 + normalized.length);
-              label ||= value;
-            }
-          }
+        if (textNeedles.length === 0) {
+          return null;
         }
 
-        return {
-          score,
-          label,
+        const selectorText = selectors.join(", ");
+
+        const visible = (element: Element) => {
+          try {
+            if (!(element instanceof HTMLElement)) {
+              return false;
+            }
+            const rect = element.getBoundingClientRect();
+            if (rect.width < 6 || rect.height < 6) {
+              return false;
+            }
+            const style = window.getComputedStyle(element);
+            return (
+              style.display !== "none" &&
+              style.visibility !== "hidden" &&
+              style.opacity !== "0"
+            );
+          } catch {
+            return false;
+          }
         };
-      };
 
-      const roots: Array<Document | ShadowRoot> = [document];
-      const seen = new Set<Element>();
-      let best:
-        | {
-            score: number;
-            x: number;
-            y: number;
-            cursor: CursorKind;
-            label: string;
+        const clickable = (element: Element) => {
+          try {
+            const html = element as HTMLElement;
+            const role = (element.getAttribute("role") ?? "").toLowerCase();
+            const tag = element.tagName.toLowerCase();
+            const cursor = window.getComputedStyle(html).cursor;
+            return (
+              tag === "button" ||
+              tag === "a" ||
+              tag === "summary" ||
+              tag === "label" ||
+              tag === "option" ||
+              role === "button" ||
+              role === "link" ||
+              role === "tab" ||
+              role === "option" ||
+              role === "menuitem" ||
+              tag === "input" ||
+              cursor === "pointer" ||
+              html.onclick !== null ||
+              html.tabIndex >= 0
+            );
+          } catch {
+            return false;
           }
-        | null = null;
+        };
 
-      while (roots.length > 0) {
-        const root = roots.pop();
-        if (!root) {
-          continue;
-        }
-
-        const elements = Array.from(root.querySelectorAll("*"));
-        for (const element of elements) {
-          if (seen.has(element) || !visible(element)) {
-            continue;
+        const editable = (element: Element) => {
+          try {
+            const role = (element.getAttribute("role") ?? "").toLowerCase();
+            return (
+              element instanceof HTMLInputElement ||
+              element instanceof HTMLTextAreaElement ||
+              (element as HTMLElement).isContentEditable ||
+              role === "textbox" ||
+              role === "searchbox" ||
+              role === "combobox"
+            );
+          } catch {
+            return false;
           }
-          seen.add(element);
+        };
 
+        const safeText = (read: () => unknown) => {
+          try {
+            const value = read();
+            return value == null ? "" : String(value).trim();
+          } catch {
+            return "";
+          }
+        };
+
+        const collectText = (element: Element) => {
           const html = element as HTMLElement;
-          if (html.shadowRoot) {
-            roots.push(html.shadowRoot);
+          const values = [
+            safeText(() => html.innerText),
+            safeText(() => html.textContent),
+            safeText(() => html.getAttribute("aria-label")),
+            safeText(() => html.getAttribute("placeholder")),
+            safeText(() => html.getAttribute("title")),
+            safeText(() => html.getAttribute("data-testid")),
+            safeText(() => html.getAttribute("data-test-id")),
+            safeText(() => html.getAttribute("name")),
+            safeText(() => html.getAttribute("value")),
+            safeText(() => (element instanceof HTMLInputElement ? element.value : "")),
+          ].filter(Boolean);
+
+          return Array.from(new Set(values));
+        };
+
+        const matchScore = (values: string[]) => {
+          let score = 0;
+          let label = "";
+
+          for (const value of values) {
+            const normalized = value.toLowerCase();
+            for (const needle of textNeedles) {
+              if (normalized === needle) {
+                return {
+                  score: 1000 + needle.length,
+                  label: value,
+                };
+              }
+
+              let candidateScore = 0;
+              if (normalized.startsWith(needle)) {
+                candidateScore = 800 + needle.length;
+              } else if (normalized.includes(needle)) {
+                candidateScore = 600 + needle.length;
+              } else if (needle.includes(normalized) && normalized.length >= 4) {
+                candidateScore = 400 + normalized.length;
+              }
+
+              if (candidateScore > score) {
+                score = candidateScore;
+                label = value;
+              }
+            }
           }
 
-          if (targetKind === "clickable" && !clickable(element)) {
+          return {
+            score,
+            label,
+          };
+        };
+
+        const roots: Array<Document | ShadowRoot> = [document];
+        const seen = new Set<Element>();
+        let best:
+          | {
+              score: number;
+              x: number;
+              y: number;
+              cursor: CursorKind;
+              label: string;
+            }
+          | null = null;
+
+        while (roots.length > 0) {
+          const root = roots.pop();
+          if (!root) {
             continue;
           }
-          if (targetKind === "input" && !editable(element)) {
+
+          let elements: Element[] = [];
+          try {
+            elements = Array.from(root.querySelectorAll(selectorText));
+          } catch {
             continue;
           }
 
-          const values = collectText(element);
-          const matched = matchScore(values);
-          if (matched.score <= 0) {
-            continue;
-          }
+          for (const element of elements) {
+            if (seen.has(element)) {
+              continue;
+            }
+            seen.add(element);
 
-          const rect = html.getBoundingClientRect();
-          const cursor: CursorKind =
-            editable(element)
-              ? "text"
-              : clickable(element)
-                ? "pointer"
-                : "default";
-          const score =
-            matched.score +
-            Math.min(120, Math.round(rect.width + rect.height));
+            try {
+              const html = element as HTMLElement;
+              if (html.shadowRoot) {
+                roots.push(html.shadowRoot);
+              }
 
-          if (!best || score > best.score) {
-            best = {
-              score,
-              x: rect.left + rect.width / 2,
-              y: rect.top + rect.height / 2,
-              cursor,
-              label: matched.label || values[0] || "",
-            };
+              if (!visible(element)) {
+                continue;
+              }
+              if (targetKind === "clickable" && !clickable(element)) {
+                continue;
+              }
+              if (targetKind === "input" && !editable(element)) {
+                continue;
+              }
+
+              const values = collectText(element);
+              const matched = matchScore(values);
+              if (matched.score <= 0) {
+                continue;
+              }
+
+              const rect = html.getBoundingClientRect();
+              const cursor: CursorKind =
+                editable(element)
+                  ? "text"
+                  : clickable(element)
+                    ? "pointer"
+                    : "default";
+              const score =
+                matched.score +
+                Math.min(120, Math.round(rect.width + rect.height));
+
+              if (!best || score > best.score) {
+                best = {
+                  score,
+                  x: rect.left + rect.width / 2,
+                  y: rect.top + rect.height / 2,
+                  cursor,
+                  label: matched.label || values[0] || "",
+                };
+              }
+            } catch {
+              continue;
+            }
           }
         }
-      }
 
-      return best;
-    },
-    {
+        return best;
+      },
+      {
+        texts: args.texts,
+        targetKind: args.targetKind,
+        selectors,
+      }
+    );
+
+    if (result) {
+      return {
+        point: clampPointToViewport(
+          {
+            x: Math.round(result.x),
+            y: Math.round(result.y),
+          },
+          args.viewport
+        ),
+        cursor: result.cursor,
+        label: result.label,
+      };
+    }
+  } catch (error) {
+    console.warn("Manual target DOM scan failed, falling back to locators.", {
       texts: args.texts,
       targetKind: args.targetKind,
-    }
-  );
-
-  if (!result) {
-    return null;
+      error: formatErrorForLog(error),
+    });
   }
 
-  return {
-    point: clampPointToViewport(
-      {
-        x: Math.round(result.x),
-        y: Math.round(result.y),
-      },
-      args.viewport
-    ),
-    cursor: result.cursor,
-    label: result.label,
-  };
+  return findManualTargetByLocator(page, {
+    ...args,
+    selectors,
+  });
 }
 
 async function summarizeVisibleTargets(page: BrowserPage) {
@@ -1837,12 +2314,12 @@ function inferCursorKind(
   return "default";
 }
 
-function pickBestAction(actions: Action[], step: DemoActStep) {
+function pickBestAction(actions: Action[], step: DemoActStep | DemoFocusStep) {
   if (!actions.length) {
     return null;
   }
 
-  if (step.text) {
+  if ("text" in step && step.text) {
     return (
       actions.find((action) => {
         const method = normalizeMethod(action.method);
@@ -1994,6 +2471,11 @@ function easeInOutCubic(progress: number) {
   return progress < 0.5
     ? 4 * progress * progress * progress
     : 1 - ((-2 * progress + 2) ** 3) / 2;
+}
+
+function easeSmootherStep(progress: number) {
+  const clamped = clamp01(progress);
+  return clamped * clamped * clamped * (clamped * (clamped * 6 - 15) + 10);
 }
 
 function clamp(value: number, min: number, max: number) {
