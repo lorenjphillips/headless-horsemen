@@ -44,6 +44,7 @@
     label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.06em; }
     input, textarea { width: 100%; padding: 0.65rem 0.75rem; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
     input:focus, textarea:focus { border-color: var(--accent); box-shadow: var(--glow-md); }
+    input:disabled, textarea:disabled { background: var(--bg-surface); color: var(--text-dim); border-color: var(--border-base); -webkit-text-fill-color: var(--text-dim); opacity: 1; }
     textarea { resize: vertical; min-height: 60px; }
 
     button { padding: 0.7rem 1.5rem; background: var(--accent); color: var(--bg-base); border: none; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.15s, box-shadow 0.2s, transform 0.15s; }
