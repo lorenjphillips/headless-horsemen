@@ -143,6 +143,8 @@ app.get("/demos/:id/video", (req, res) => {
     res.status(404).json({ error: "Video file missing" });
     return;
   }
+  res.setHeader("Content-Type", "video/mp4");
+  res.setHeader("Content-Disposition", `inline; filename="demo.mp4"`);
   res.sendFile(job.videoPath);
 });
 
