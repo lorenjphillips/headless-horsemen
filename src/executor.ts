@@ -3,11 +3,86 @@ import { Stagehand } from "@browserbasehq/stagehand";
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
+import { GoogleGenAI } from "@google/genai";
 import { ActionStep, ActionLogEntry, DemoOptions } from "./types.js";
+import { generateVoiceoverPackage, type InteractionEvent } from "./voiceover.js";
+import { normalizeInstructionSentence } from "./interaction-events.js";
 
 const DEFAULT_OUTPUT_DIR = path.resolve("output");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Max time window any single event should occupy (prevents last-event bloat). */
+const MAX_EVENT_WINDOW_MS = 8000;
+/** Events with windows shorter than this are too brief for TTS and are skipped. */
+const MIN_EVENT_WINDOW_MS = 2000;
+/**
+ * Gap threshold for merging nearby events into one voiceover segment.
+ * Higher = fewer, longer segments → more natural pacing.
+ * Pipeline actions are typically 2.5–3s apart, so 5s merges most consecutive pairs.
+ */
+const PIPELINE_MAX_GAP_MS = 5000;
+
+/** Convert action log entries to InteractionEvent[] for voiceover.ts */
+function actionLogToInteractionEvents(
+  actionLog: ActionLogEntry[],
+  videoDurationMs: number,
+): InteractionEvent[] {
+  const events: InteractionEvent[] = [];
+  const entries = actionLog.filter(
+    (e) => e.success && e.action.action !== "wait",
+  );
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const startMs = entry.timestamp_ms;
+    const rawEndMs = entries[i + 1]?.timestamp_ms ?? videoDurationMs;
+    // Cap the window so the last event doesn't span the entire remaining video
+    const endMs = Math.min(rawEndMs, startMs + MAX_EVENT_WINDOW_MS);
+    if (endMs <= startMs) continue;
+    // Skip events with very short windows — TTS would be cut off mid-word
+    if (endMs - startMs < MIN_EVENT_WINDOW_MS) continue;
+
+    const a = entry.action;
+    let device: "mouse" | "keyboard" = "mouse";
+    let kind: InteractionEvent["kind"] = "click";
+    let instruction: string;
+
+    if (a.action === "goto") {
+      instruction = `Navigate to ${a.url}.`;
+    } else if (a.action === "act") {
+      instruction = normalizeInstructionSentence(a.instruction);
+      // Infer device/kind from instruction text
+      const lower = a.instruction.toLowerCase();
+      if (/\b(type|fill|enter|input)\b/.test(lower)) {
+        device = "keyboard";
+        kind = "type";
+      } else if (/\b(scroll|wheel)\b/.test(lower)) {
+        kind = "scroll";
+      } else if (/\b(press|hit|key|tab|enter|escape)\b/.test(lower)) {
+        device = "keyboard";
+        kind = "press";
+      }
+    } else if (a.action === "scroll") {
+      kind = "scroll";
+      instruction = `Scroll ${a.direction}.`;
+    } else {
+      continue;
+    }
+
+    events.push({
+      id: `event-${String(startMs).padStart(6, "0")}-${String(i + 1).padStart(2, "0")}`,
+      device,
+      kind,
+      instruction,
+      actionDescription: instruction,
+      startMs,
+      endMs,
+    });
+  }
+
+  return events;
+}
 
 export interface ExecutorOptions {
   outputDir?: string;
@@ -38,6 +113,12 @@ export async function executeActionPlan(
   const viewport = demoOpts.viewport ?? { width: 1280, height: 720 };
 
   const subtitlesEnabled = demoOpts.subtitles ?? false;
+
+  // Narration settings
+  const narrationOpts = demoOpts.narration || null;
+  const narrationEnabled = narrationOpts?.enabled ?? false;
+  const narrationVoice = narrationOpts?.voice || "Puck";
+  const narrationContext = narrationOpts?.context;
 
   // Resolve music track path
   const musicTrack = demoOpts.backgroundMusic
@@ -195,7 +276,7 @@ export async function executeActionPlan(
     try {
       execSync(
         `ffmpeg -y -framerate ${actualFps} -i "${FRAMES_DIR}/frame_%05d.jpg" ` +
-          `-vf "minterpolate=fps=${targetFps}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" ` +
+          `-vf "minterpolate=fps=${targetFps}:mi_mode=dup" ` +
           `-c:v libx264 -pix_fmt yuv420p -b:v ${quality.bitrate} "${videoPath}"`,
         { stdio: "pipe", timeout: 300000 }
       );
@@ -304,6 +385,82 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\
     } catch (err: any) {
       console.error("[executor] Subtitle burning failed:", err.stderr?.toString().slice(-300) || err.message);
       // Keep the video without subtitles
+    }
+  }
+
+  // Generate TTS narration and mux into video if enabled
+  if (narrationEnabled && actionLog.length > 0 && fs.existsSync(videoPath)) {
+    console.log("[executor] Generating TTS narration...");
+    try {
+      // Get video duration
+      const durationStr = execSync(
+        `ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`,
+        { encoding: "utf8", timeout: 10000 }
+      ).trim();
+      const videoDurationMs = parseFloat(durationStr) * 1000;
+
+      // Convert action log to interaction events
+      const events = actionLogToInteractionEvents(actionLog, videoDurationMs);
+      if (events.length > 0) {
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+        const voiceoverDir = path.join(OUTPUT_DIR, "voiceover");
+
+        const { manifest } = await generateVoiceoverPackage({
+          ai,
+          context: narrationContext ?? "A concise screen-recorded product demo.",
+          events,
+          outputDir: voiceoverDir,
+          voiceName: narrationVoice,
+          sourceVideo: videoPath,
+        });
+
+        // Mux voiceover segments into video
+        const audioSegments = manifest.segments.filter((s) => s.audioFile);
+        if (audioSegments.length > 0) {
+          const narrated = path.join(OUTPUT_DIR, "demo_narrated.mp4");
+          const ffmpegArgs = ["-y", "-i", videoPath];
+          for (const seg of audioSegments) {
+            ffmpegArgs.push("-i", path.join(voiceoverDir, seg.audioFile!));
+          }
+
+          // Build adelay filters for each segment
+          const delayFilters = audioSegments.map((seg, idx) => {
+            const delayMs = Math.max(0, Math.round(seg.startMs));
+            return `[${idx + 1}:a]adelay=${delayMs}:all=1[a${idx}]`;
+          });
+
+          let filterComplex: string;
+          if (audioSegments.length === 1) {
+            filterComplex = `${delayFilters[0]};[a0]anull[aout]`;
+          } else {
+            const labels = audioSegments.map((_, idx) => `[a${idx}]`).join("");
+            filterComplex =
+              `${delayFilters.join(";")};` +
+              `${labels}amix=inputs=${audioSegments.length}:normalize=0[aout]`;
+          }
+
+          ffmpegArgs.push(
+            "-filter_complex", filterComplex,
+            "-map", "0:v:0", "-map", "[aout]",
+            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+            "-movflags", "+faststart", narrated,
+          );
+
+          execSync(ffmpegArgs.map((a) => `"${a}"`).join(" "), {
+            stdio: "pipe",
+            timeout: 300000,
+            shell: "/bin/sh",
+          });
+
+          fs.renameSync(narrated, videoPath);
+          console.log("[executor] TTS narration muxed successfully.");
+        }
+      } else {
+        console.log("[executor] No narrable events found, skipping TTS.");
+      }
+    } catch (err: any) {
+      console.error("[executor] TTS narration failed:", err.stderr?.toString().slice(-300) || err.message);
+      // Non-fatal: keep video without narration
     }
   }
 
