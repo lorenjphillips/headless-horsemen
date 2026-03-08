@@ -161,6 +161,12 @@ async function runPipeline(job: DemoJob) {
     job.similarDemosFound = similarDemosFound;
     job.status = "executing";
 
+    // Enrich narration options with demo context
+    const narr = job.options.narration || null;
+    if (narr && narr.enabled) {
+      narr.context ??= `Demo of ${job.siteUrl}: ${job.demoTask}`;
+    }
+
     // Phase 2: Execute
     console.log(`[server] Job ${job.id}: executing ${steps.length} steps...`);
     const { videoPath, actionLog } = await executeActionPlan(steps, {

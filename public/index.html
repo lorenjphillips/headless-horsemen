@@ -185,6 +185,23 @@
             <button class="seg-btn" data-val="on" onclick="setSeg(this)">On</button>
           </div>
         </div>
+        <div class="opt-row">
+          <div class="opt-label">Narration</div>
+          <div class="seg-control" id="opt-narration" data-value="off">
+            <button class="seg-btn active" data-val="off" onclick="setSeg(this)">Off</button>
+            <button class="seg-btn" data-val="on" onclick="setSeg(this)">On</button>
+          </div>
+        </div>
+        <div class="opt-row" id="voice-row" style="display:none">
+          <div class="opt-label">Voice</div>
+          <div class="music-pills" id="opt-voice" data-value="Puck">
+            <button class="music-pill active" data-val="Puck" onclick="setMusic(this)">Puck</button>
+            <button class="music-pill" data-val="Kore" onclick="setMusic(this)">Kore</button>
+            <button class="music-pill" data-val="Charon" onclick="setMusic(this)">Charon</button>
+            <button class="music-pill" data-val="Fenrir" onclick="setMusic(this)">Fenrir</button>
+            <button class="music-pill" data-val="Achird" onclick="setMusic(this)">Achird</button>
+          </div>
+        </div>
       </div>
       <div style="text-align:center"><button id="generate-btn" onclick="submitDemo()">Generate Demo</button></div>
     </div>
@@ -234,6 +251,10 @@
       parent.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       parent.dataset.value = btn.dataset.val;
+      // Show/hide voice picker when narration is toggled
+      if (parent.id === 'opt-narration') {
+        document.getElementById('voice-row').style.display = btn.dataset.val === 'on' ? '' : 'none';
+      }
     }
 
     function setMusic(btn) {
@@ -252,6 +273,9 @@
       if (document.getElementById('opt-subtitles').dataset.value === 'on') opts.subtitles = true;
       const music = document.getElementById('opt-music').dataset.value;
       if (music) opts.backgroundMusic = music;
+      if (document.getElementById('opt-narration').dataset.value === 'on') {
+        opts.narration = { enabled: true, voice: document.getElementById('opt-voice').dataset.value || 'Puck' };
+      }
       return Object.keys(opts).length > 0 ? opts : undefined;
     }
 
@@ -402,6 +426,12 @@
       document.getElementById('generate-btn').disabled = false;
       document.getElementById('site-url').disabled = false;
       document.getElementById('demo-task').disabled = false;
+      // Reset narration state
+      document.getElementById('opt-narration').dataset.value = 'off';
+      document.getElementById('opt-narration').querySelectorAll('.seg-btn').forEach((b, i) => {
+        b.classList.toggle('active', i === 0);
+      });
+      document.getElementById('voice-row').style.display = 'none';
     }
   </script>
 </body>

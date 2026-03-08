@@ -399,7 +399,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\
       ).trim();
       const videoDurationMs = parseFloat(durationStr) * 1000;
 
-      // Convert action log to interaction events
+      // Convert action log to interaction events (short-window events already filtered out)
       const events = actionLogToInteractionEvents(actionLog, videoDurationMs);
       if (events.length > 0) {
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
@@ -409,6 +409,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\
           ai,
           context: narrationContext ?? "A concise screen-recorded product demo.",
           events,
+          maxGapMs: PIPELINE_MAX_GAP_MS,
           outputDir: voiceoverDir,
           voiceName: narrationVoice,
           sourceVideo: videoPath,
@@ -417,16 +418,22 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\
         // Mux voiceover segments into video
         const audioSegments = manifest.segments.filter((s) => s.audioFile);
         if (audioSegments.length > 0) {
+          console.log(`[executor] Muxing ${audioSegments.length} TTS segment(s)...`);
           const narrated = path.join(OUTPUT_DIR, "demo_narrated.mp4");
           const ffmpegArgs = ["-y", "-i", videoPath];
           for (const seg of audioSegments) {
             ffmpegArgs.push("-i", path.join(voiceoverDir, seg.audioFile!));
           }
 
-          // Build adelay filters for each segment
+          // Build adelay + atrim filters for each segment.
+          // atrim caps each segment's audio so it doesn't bleed into the next
+          // segment or past the video end.
           const delayFilters = audioSegments.map((seg, idx) => {
             const delayMs = Math.max(0, Math.round(seg.startMs));
-            return `[${idx + 1}:a]adelay=${delayMs}:all=1[a${idx}]`;
+            // Max audio duration = time until next segment starts, or until video ends
+            const nextStartMs = audioSegments[idx + 1]?.startMs ?? videoDurationMs;
+            const maxDurSec = Math.max(0.5, (nextStartMs - seg.startMs) / 1000);
+            return `[${idx + 1}:a]atrim=0:${maxDurSec.toFixed(2)},asetpts=PTS-STARTPTS,adelay=${delayMs}:all=1[a${idx}]`;
           });
 
           let filterComplex: string;
@@ -443,6 +450,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\
             "-filter_complex", filterComplex,
             "-map", "0:v:0", "-map", "[aout]",
             "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+            "-shortest",
             "-movflags", "+faststart", narrated,
           );
 

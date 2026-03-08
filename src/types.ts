@@ -14,10 +14,13 @@ export interface ActionLogEntry {
 
 export type MusicTrack = "lofi-chill" | "upbeat-tech" | "ambient-focus" | "cinematic-reveal";
 
+export type VoiceName = "Puck" | "Kore" | "Charon" | "Fenrir" | "Achird";
+
 export interface DemoOptions {
   // Post-production
   subtitles?: boolean;
   backgroundMusic?: MusicTrack | false;
+  narration?: { enabled: boolean; voice?: VoiceName; context?: string } | false;
 
   // Video quality
   videoQuality?: "low" | "medium" | "high";
