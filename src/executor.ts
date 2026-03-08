@@ -348,13 +348,33 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\
         { stdio: "pipe", timeout: 120000 }
       );
 
+      // Check if video has an existing audio stream
+      let hasAudio = false;
+      try {
+        const audioCheck = execSync(
+          `ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "${videoPath}"`,
+          { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }
+        ).trim();
+        hasAudio = audioCheck.length > 0;
+      } catch {}
+
       // Second pass: mix background track under the video
-      execSync(
-        `ffmpeg -y -i "${videoPath}" -i "${bgTrackPath}" ` +
-          `-filter_complex "[0:a][1:a]amix=inputs=2:duration=first:normalize=0,afade=t=out:st=${fadeOutStart}:d=3.5[aout]" ` +
-          `-map 0:v:0 -map "[aout]" -c:v copy -c:a aac -b:a 192k -movflags +faststart "${withMusicPath}"`,
-        { stdio: "pipe", timeout: 120000 }
-      );
+      if (hasAudio) {
+        // Video has audio (e.g. TTS narration) — mix music underneath
+        execSync(
+          `ffmpeg -y -i "${videoPath}" -i "${bgTrackPath}" ` +
+            `-filter_complex "[0:a][1:a]amix=inputs=2:duration=first:normalize=0,afade=t=out:st=${fadeOutStart}:d=3.5[aout]" ` +
+            `-map 0:v:0 -map "[aout]" -c:v copy -c:a aac -b:a 192k -movflags +faststart "${withMusicPath}"`,
+          { stdio: "pipe", timeout: 120000 }
+        );
+      } else {
+        // Video-only (no TTS) — add music as the sole audio track
+        execSync(
+          `ffmpeg -y -i "${videoPath}" -i "${bgTrackPath}" ` +
+            `-map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart "${withMusicPath}"`,
+          { stdio: "pipe", timeout: 120000 }
+        );
+      }
 
       fs.unlinkSync(bgTrackPath);
       fs.renameSync(withMusicPath, videoPath);
