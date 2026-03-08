@@ -38,20 +38,20 @@
     .header-left { display: flex; align-items: center; gap: 0.6rem; }
     .header-logo { width: 44px; height: 44px; filter: drop-shadow(0 0 6px rgba(96,165,250,0.3)); }
     header h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.02em; text-shadow: 0 0 20px rgba(96,165,250,0.15); }
-    header span { font-size: 0.75rem; color: var(--text-dim); background: var(--bg-surface); padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid var(--border-subtle); }
+    header span { font-size: 0.75rem; color: var(--text-dim); background: var(--bg-surface); padding: 0.25rem 0.5rem; border-radius: 2px; border: 1px solid var(--border-subtle); }
 
     .form-group { margin-bottom: 1rem; }
     label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.06em; }
-    input, textarea { width: 100%; padding: 0.65rem 0.75rem; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+    input, textarea { width: 100%; padding: 0.65rem 0.75rem; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 3px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
     input:focus, textarea:focus { border-color: var(--accent); box-shadow: var(--glow-md); }
     input:disabled, textarea:disabled { background: var(--bg-surface); color: var(--text-dim); border-color: var(--border-base); -webkit-text-fill-color: var(--text-dim); opacity: 1; }
     textarea { resize: vertical; min-height: 60px; }
 
-    button { padding: 0.7rem 1.5rem; background: var(--accent); color: var(--bg-base); border: none; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.15s, box-shadow 0.2s, transform 0.15s; }
+    button { padding: 0.7rem 1.5rem; background: var(--accent); color: var(--bg-base); border: none; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background 0.15s, box-shadow 0.2s, transform 0.15s; }
     button:hover { background: var(--accent-hover); box-shadow: var(--glow-lg); transform: translateY(-1px); }
     button:disabled { background: var(--border-base); color: var(--text-dim); cursor: not-allowed; box-shadow: none; transform: none; }
 
-    .section { margin-top: 1.5rem; padding: 1rem; background: var(--bg-surface); border: 1px solid var(--border-base); border-radius: 8px; box-shadow: var(--glow-sm); }
+    .section { margin-top: 1.5rem; padding: 1rem; background: var(--bg-surface); border: 1px solid var(--border-base); border-radius: 4px; box-shadow: var(--glow-sm); }
     .section h2 { font-size: 1rem; margin-bottom: 0.75rem; color: var(--text-body); text-transform: uppercase; letter-spacing: 0.06em; }
 
     .status-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
@@ -69,13 +69,13 @@
     .step-list li.pending { color: var(--text-dim); }
     .step-icon { flex-shrink: 0; width: 1.1em; text-align: center; }
 
-    video { width: 100%; border-radius: 6px; background: #000; margin-bottom: 0.75rem; border: 1px solid var(--border-base); box-shadow: var(--glow-md); }
+    video { width: 100%; border-radius: 3px; background: #000; margin-bottom: 0.75rem; border: 1px solid var(--border-base); box-shadow: var(--glow-md); }
 
-    .memory-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; background: rgba(96,165,250,0.06); border: 1px solid rgba(96,165,250,0.15); border-radius: 6px; margin-bottom: 0.75rem; font-size: 0.78rem; color: var(--accent); }
+    .memory-badge { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; background: rgba(96,165,250,0.06); border: 1px solid rgba(96,165,250,0.15); border-radius: 3px; margin-bottom: 0.75rem; font-size: 0.78rem; color: var(--accent); }
     .memory-badge a { color: var(--accent); text-decoration: none; font-weight: 600; }
     .memory-badge a:hover { text-decoration: underline; }
 
-    .error-banner { background: #1a0f1f; border: 1px solid #5c2040; color: #f87171; padding: 0.75rem 1rem; border-radius: 6px; margin-top: 1rem; font-size: 0.9rem; }
+    .error-banner { background: #1a0f1f; border: 1px solid #5c2040; color: #f87171; padding: 0.75rem 1rem; border-radius: 3px; margin-top: 1rem; font-size: 0.9rem; }
 
     .btn-row { display: flex; gap: 0.75rem; margin-top: 0.75rem; }
     .btn-secondary { background: var(--bg-input); color: var(--text-body); }
@@ -89,18 +89,18 @@
     .opt-label a { color: var(--accent); text-decoration: none; font-size: 0.7rem; }
     .opt-label a:hover { text-decoration: underline; }
 
-    .seg-control { display: flex; background: var(--bg-input); border: 1px solid var(--border-base); border-radius: 8px; padding: 3px; gap: 2px; }
-    .seg-btn { flex: 1; padding: 0.4rem 0.5rem; background: transparent; border: none; border-radius: 6px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: all 0.15s; text-align: center; white-space: nowrap; }
+    .seg-control { display: flex; background: var(--bg-input); border: 1px solid var(--border-base); border-radius: 4px; padding: 3px; gap: 2px; }
+    .seg-btn { flex: 1; padding: 0.4rem 0.5rem; background: transparent; border: none; border-radius: 2px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: all 0.15s; text-align: center; white-space: nowrap; }
     .seg-btn:hover { color: var(--text-body); }
     .seg-btn.active { background: var(--accent); color: var(--bg-base); box-shadow: var(--glow-sm); }
 
     .music-pills { display: flex; flex-wrap: wrap; gap: 6px; }
-    .music-pill { padding: 0.35rem 0.7rem; background: var(--bg-input); border: 1px solid var(--border-base); border-radius: 20px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 0.73rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .music-pill { padding: 0.35rem 0.7rem; background: var(--bg-input); border: 1px solid var(--border-base); border-radius: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 0.73rem; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
     .music-pill:hover { border-color: var(--border-subtle); color: var(--text-body); }
     .music-pill.active { background: var(--active-pill-bg); border-color: var(--accent); color: var(--active-pill-text); box-shadow: var(--glow-sm); }
 
     .header-badges { display: flex; gap: 0.5rem; align-items: center; }
-    .badge-link { font-size: 0.75rem; color: var(--text-dim); background: var(--bg-surface); padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid var(--border-subtle); text-decoration: none; transition: border-color 0.15s, color 0.15s; }
+    .badge-link { font-size: 0.75rem; color: var(--text-dim); background: var(--bg-surface); padding: 0.25rem 0.5rem; border-radius: 2px; border: 1px solid var(--border-subtle); text-decoration: none; transition: border-color 0.15s, color 0.15s; }
     .badge-link:hover { border-color: var(--accent); color: var(--text-body); }
 
     .powered-by { position: fixed; top: 1rem; right: 1rem; display: flex; align-items: center; gap: 0.75rem; z-index: 100; }
